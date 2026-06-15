@@ -278,8 +278,8 @@ Distributed under the **MIT License**.
 | Ahmed Wesam Alhayek | Software Developer | aalhayek7@smail.ucas.edu.ps |
 | Raghad Mohammad Jawad AlSerhy | UI/UX Designer | raghadmohammad804@gmail.com |
 
-**Team GitHub:** [https://github.com/your-team]([https://github.com/your-team](https://github.com/Alhayek7/mental-load))
-
+**GitHub Repository:** [https://github.com/Alhayek7/mental-load](https://github.com/Alhayek7/mental-load)  
+**Privacy Policy:** [PRIVACY_POLICY.md](https://github.com/Alhayek7/mental-load/blob/main/PRIVACY_POLICY.md)
 ---
 
 <div align="center">
