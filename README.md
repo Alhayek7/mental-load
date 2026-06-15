@@ -278,7 +278,7 @@ Distributed under the **MIT License**.
 | Ahmed Wesam Alhayek | Software Developer | aalhayek7@smail.ucas.edu.ps |
 | Raghad Mohammad Jawad AlSerhy | UI/UX Designer | raghadmohammad804@gmail.com |
 
-**Team GitHub:** [https://github.com/your-team](https://github.com/your-team)
+**Team GitHub:** [https://github.com/your-team]([https://github.com/your-team](https://github.com/Alhayek7/mental-load))
 
 ---
 
@@ -289,6 +289,6 @@ Distributed under the **MIT License**.
   <p>© 2026 Team GOAI</p>
 </div>
 ```
----
+
 
 **أخبرني "تم" بعد أن تنتهي من إنشاء الملف.**
