@@ -1,100 +1,100 @@
-# 📦 Mental Load – التوثيق الشامل للمشروع
+# 📦 Mental Load – Complete Project Documentation
 
 ## USAII Global AI Hackathon 2026 | Undergraduate Track
-### تحدي Productivity: "Second Brain for Real Life"
+### Challenge: Productivity: "Second Brain for Real Life"
 
-**Team GOAI** | **تاريخ التوثيق: 15 يونيو 2026**
+**Team GOAI** | **Documentation Date: June 15, 2026**
 
 ---
 
-## 📑 فهرس المحتويات
+## 📑 Table of Contents
 
-| الرقم | القسم |
+| # | Section |
 | :--- | :--- |
-| 1 | نظرة عامة عن المشروع |
-| 2 | المشكلة والحل |
-| 3 | الذكاء الاصطناعي والمعمارية التقنية |
-| 4 | تصميم الشاشات وتجربة المستخدم |
-| 5 | قاعدة البيانات |
+| 1 | Project Overview |
+| 2 | Problem & Solution |
+| 3 | AI & Technical Architecture |
+| 4 | Screens & UX Design |
+| 5 | Database |
 | 6 | Human-in-the-Loop Design |
 | 7 | Responsible AI & Guardrails |
-| 8 | الأدوات والتقنيات |
-| 9 | خطة التنفيذ (7 أيام) |
-| 10 | سيناريو فيديو العرض |
-| 11 | متطلبات Devpost |
-| 12 | قائمة المراجعة النهائية |
+| 8 | Tools & Technologies |
+| 9 | Development Timeline (7 Days) |
+| 10 | Video Pitch Script |
+| 11 | Devpost Requirements |
+| 12 | Final Checklist |
 
 ---
 
-## 1. نظرة عامة عن المشروع
+## 1. Project Overview
 
-| العنصر | التفصيل |
+| Element | Details |
 | :--- | :--- |
-| **اسم المشروع** | Mental Load |
-| **الشعار** | Understand Your Mental Load |
-| **اسم الفريق** | GOAI |
-| **الفكرة الأساسية** | مساعد ذكاء اصطناعي يومي (AI Check-in) يكتشف الإرهاق المعرفي لمستخدمي أدوات الذكاء الاصطناعي، ويقدم تدخلات مخصصة استباقية |
+| **Project Name** | Mental Load |
+| **Tagline** | Understand Your Mental Load |
+| **Team Name** | GOAI |
+| **Core Idea** | An AI-powered daily check-in assistant that detects cognitive overload in heavy AI tool users and provides proactive, personalized interventions. |
 
-### القيمة المميزة
+### Unique Value Proposition
 
-> *"جهاز مناعة رقمي لعقلك – يكتشف الإرهاق قبل أن تشعر به"*
+> *"A digital immune system for your brain – it detects overload before you feel it."*
 
 ---
 
-## 2. المشكلة والحل
+## 2. Problem & Solution
 
-### المشكلة الأساسية
+### The Core Problem
 
-وفقاً لدراسة **Harvard Business Review (مارس 2026)** بالتعاون مع Boston Consulting Group، وشملت **1,488 موظفاً بدوام كامل**:
+According to a **Harvard Business Review study (March 2026)** conducted with Boston Consulting Group, involving **1,488 full-time employees**:
 
-> **14% من مستخدمي أدوات الذكاء الاصطناعي يعانون من 'Brain Fry' – إرهاق معرفي حاد يتمثل في ضبابية التفكير، صعوبة التركيز، وبطء اتخاذ القرارات.**
+> **14% of AI tool users suffer from 'Brain Fry'** – severe cognitive overload characterized by brain fog, difficulty concentrating, and slowed decision-making.
 
-**المصدر:** HBR, "When AI Overloads Your Brain", March 2026
+**Source:** HBR, "When AI Overloads Your Brain", March 2026
 
-### الفجوة التي يسدها Mental Load
+### The Gap Mental Load Fills
 
-| العائق | الشرح |
+| Barrier | Explanation |
 | :--- | :--- |
-| **أدوات الإنتاجية التقليدية** | تنظم المهام فقط، لا تحلل الحالة الذهنية |
-| **أجهزة القياس الحيوي** | تقيس النوم ومعدل القلب، لا تفهم اللغة الطبيعية |
-| **المساعدون الصوتيون** | ينفذون أوامر بسيطة، لا يكتشفون الإرهاق |
+| **Traditional productivity tools** | Only organize tasks, don't analyze mental state |
+| **Biometric devices** | Measure sleep and heart rate, don't understand natural language |
+| **Voice assistants** | Execute simple commands, don't detect cognitive overload |
 
-### الحل المقترح
+### Proposed Solution
 
-| الآلية | الوصف | الـ AI المستخدم |
+| Mechanism | Description | AI Technology |
 | :--- | :--- | :--- |
-| 🟢 **الكشف المبكر** | تحليل النص الحر لاكتشاف مؤشرات الإرهاق | BERT-base-uncased |
-| 🟡 **التدخل الاستباقي** | توليد توصيات مخصصة فورية | Gemini 1.5 Flash API |
-| 🔵 **التوقع المستقبلي** | التنبؤ بـ "Burnout Score" بعد 3 أيام | ARIMA |
+| 🟢 **Early Detection** | Analyzes free text to detect overload indicators before the user feels them | BERT-base-uncased |
+| 🟡 **Proactive Intervention** | Generates immediate, personalized recommendations | Gemini 1.5 Flash API |
+| 🔵 **Future Forecast** | Predicts the "Burnout Score" 3 days in advance | ARIMA |
 
 ---
 
-## 3. الذكاء الاصطناعي والمعمارية التقنية
+## 3. AI & Technical Architecture
 
-### المعمارية العامة
+### High-Level Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                      واجهة المستخدم (UI) – Flutter                      │
+│                         USER INTERFACE (Flutter)                        │
 └─────────────────────────────────┬───────────────────────────────────────┘
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                      طبقة المعالجة (Processing Layer)                   │
+│                         PROCESSING LAYER                                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────┐ │
 │  │  Whisper API    │───▶│      BERT       │───▶│   Gemini API        │ │
-│  │  (صوت → نص)     │    │  (نص → Score)   │    │  (Score → توصية)    │ │
+│  │  (Voice → Text) │    │  (Text → Score) │    │  (Score → Advice)   │ │
 │  └─────────────────┘    └─────────────────┘    └─────────────────────┘ │
 └─────────────────────────────────┬───────────────────────────────────────┘
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                   قاعدة البيانات (Supabase - PostgreSQL)                │
+│                    DATABASE (Supabase - PostgreSQL)                     │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### AI Architecture (600 حرف – لـ Devpost)
+### AI Architecture (600 chars – for Devpost)
 
 ```
 INPUTS: Free text + optional voice + AI tools count + usage pattern
@@ -111,54 +111,54 @@ CONFIDENCE PROTECTION: If confidence < 75% → user correction
 
 ---
 
-## 4. تصميم الشاشات وتجربة المستخدم
+## 4. Screens & UX Design
 
-### قائمة الشاشات (13 شاشة)
+### Complete Screen List (13 Screens)
 
-| # | الشاشة | الوصف |
+| # | Screen | Description |
 | :--- | :--- | :--- |
-| 1 | Splash Screen | شاشة البداية |
-| 2 | Onboarding (3 صفحات) | شرح فكرة التطبيق |
-| 3 | Log In | تسجيل الدخول |
-| 4 | Sign Up | إنشاء حساب |
-| 5 | Privacy & Consent | الموافقة على الخصوصية |
-| 6 | الاستبيان الأولي | جمع بيانات المستخدم |
-| 7 | Home Dashboard | الصفحة الرئيسية |
-| 8 | Check-in Screen | تسجيل اليوم |
-| 9 | Result Screen | عرض Score + توصيات |
-| 10 | Patterns Screen | صفحة "أنماطي" |
-| 11 | Analytics Screen | رسوم بيانية |
-| 12 | History Screen | سجل Check-ins |
-| 13 | Settings Screen | الإعدادات |
+| 1 | Splash Screen | App launch screen |
+| 2 | Onboarding (3 pages) | Explains the app's purpose |
+| 3 | Log In | User login |
+| 4 | Sign Up | New account creation |
+| 5 | Privacy & Consent | Privacy policy agreement |
+| 6 | Initial Questionnaire | Collects user's AI usage habits |
+| 7 | Home Dashboard | Main dashboard |
+| 8 | Check-in Screen | Daily log entry |
+| 9 | Result Screen | Displays Score + recommendations |
+| 10 | Patterns Screen | "My Patterns" page (forecast & tracker) |
+| 11 | Analytics Screen | Charts and statistics |
+| 12 | History Screen | Past check-ins log |
+| 13 | Settings Screen | App settings |
 
-### الهوية البصرية
+### Visual Identity (Color Palette)
 
-| اللون | الاسم | Hex | الاستخدام |
+| Color | Name | Hex | Usage |
 | :--- | :--- | :--- | :--- |
-| 🔵 | **Deep Blue** | `#1A5F7A` | الثقة، الأزرار الرئيسية |
-| 🟣 | **Soft Purple** | `#7B2CBF` | الإلهام، أيقونات التركيز |
-| 🟢 | **Calm Mint** | `#2D6A4F` | الهدوء، Scores المنخفضة |
-| 🟠 | **Warm Orange** | `#F4A261` | Scores المتوسطة |
-| 🔴 | **Gentle Red** | `#E76F51` | Scores المرتفعة (4-5) |
+| 🔵 | **Deep Blue** | `#1A5F7A` | Trust, primary buttons |
+| 🟣 | **Soft Purple** | `#7B2CBF` | Inspiration, focus icons |
+| 🟢 | **Calm Mint** | `#2D6A4F` | Calmness, low Scores |
+| 🟠 | **Warm Orange** | `#F4A261` | Medium Scores |
+| 🔴 | **Gentle Red** | `#E76F51` | High Scores (4-5) |
 
 ---
 
-## 5. قاعدة البيانات
+## 5. Database
 
-### التقنية: Supabase (PostgreSQL)
+### Technology: Supabase (PostgreSQL)
 
-### الجداول الرئيسية
+### Main Tables
 
-| الجدول | الأعمدة الرئيسية |
+| Table | Key Columns |
 | :--- | :--- |
 | `users` | id, email, full_name, created_at |
 | `checkins` | id, user_id, date, free_text, score, recommendation, followed |
 | `recommendations_history` | id, user_id, checkin_id, text, was_followed |
 
-### سياسة الأمان (RLS)
+### Security Policy (RLS)
 
 ```sql
--- المستخدم يرى بياناته فقط
+-- Users can only see their own data
 CREATE POLICY "Users can view own data" ON checkins
   FOR SELECT USING (auth.uid() = user_id);
 ```
@@ -167,32 +167,32 @@ CREATE POLICY "Users can view own data" ON checkins
 
 ## 6. Human-in-the-Loop Design
 
-### القرارات التي لا يفعله الـ AI
+### Decisions AI Never Makes
 
-1. **لا يقرر أبداً** أن المستخدم "يحتاج مساعدة متخصصة" دون تأكيد يدوي
-2. **لا ينفذ أي إجراء** (لا يغلق التطبيقات، لا يفرض الراحة)
-3. **لا يشارك البيانات** مع أي طرف ثالث دون موافقة
+1. **Never decides** the user "needs professional help" without explicit manual confirmation.
+2. **Never takes autonomous actions** (does not close apps or force breaks).
+3. **Never shares data** with any third party without consent.
 
-### التصميم المحدد
+### Specific Design
 
-| الطبقة | الوصف |
+| Layer | Description |
 | :--- | :--- |
-| **تصحيح التصنيف** | بعد عرض Score: "هل هذا دقيق؟" – المستخدم يصحح |
-| **متابعة التوصية** | في اليوم التالي: "هل طبقت التوصية أمس؟" |
-| **طلب المساعدة** | زر "طلب مساعدة" يتطلب ضغطاً صريحاً |
+| **Classification Correction** | After showing Score: "Is this accurate?" – User can correct it. |
+| **Recommendation Follow-up** | Next day: "Did you follow yesterday's recommendation?" |
+| **Request Help** | "Request Help" button requires an explicit click. |
 
 ---
 
 ## 7. Responsible AI & Guardrails
 
-| الخطر | الحل |
+| Risk | Mitigation |
 | :--- | :--- |
-| **استبدال الاستشارة الطبية** | تنبيه: "هذه الأداة للتوعية الذاتية وليست بديلاً عن الرعاية الصحية" |
-| **خصوصية البيانات** | تشفير شامل + عدم مشاركة + حق الحذف |
-| **المستخدمون القاصرون** | موافقة ولي الأمر + تقارير أسبوعية |
-| **التحيز (Bias)** | تصحيحات المستخدم + نماذج متعددة اللغات مستقبلاً |
+| **Replacing professional care** | Clear disclaimer: "This is for self-awareness, not a substitute for professional care" |
+| **Data privacy** | End-to-end encryption + no sharing + right to be forgotten |
+| **Underage users** | Parental consent + weekly reports to parents |
+| **Model bias** | Manual user corrections + multi-language models planned |
 
-### نص Guardrail لـ Devpost (500 حرف)
+### Guardrail Text for Devpost (500 chars)
 
 ```
 RISK 1 - Replacing professional care
@@ -207,50 +207,50 @@ MITIGATION: Parental consent + weekly reports to parents
 
 ---
 
-## 8. الأدوات والتقنيات
+## 8. Tools & Technologies
 
-| الطبقة | التقنية | الترخيص |
+| Layer | Technology | License |
 | :--- | :--- | :--- |
-| **واجهة المستخدم** | Flutter | مجاني |
-| **قاعدة البيانات** | Supabase (PostgreSQL) | مجاني |
-| **تصنيف الإرهاق** | BERT-base-uncased | مجاني |
-| **توليد التوصيات** | Gemini 1.5 Flash API | مجاني (رصيد أولي) |
-| **تحويل الصوت** | Whisper API | مجاني (رصيد أولي) |
-| **التنبؤ** | ARIMA (statsmodels) | مجاني |
+| **Frontend** | Flutter | Free |
+| **Database** | Supabase (PostgreSQL) | Free |
+| **NLP Classification** | BERT-base-uncased | Free |
+| **Recommendations** | Gemini 1.5 Flash API | Free (initial credit) |
+| **Speech-to-Text** | Whisper API | Free (initial credit) |
+| **Forecasting** | ARIMA (statsmodels) | Free |
 
 ---
 
-## 9. خطة التنفيذ (7 أيام)
+## 9. Development Timeline (7 Days)
 
-| اليوم | المهام | المسؤول |
+| Day | Tasks | Lead(s) |
 | :--- | :--- | :--- |
-| **14 يونيو** | إعداد البيئة، Supabase، شاشات Auth | Wesam + Ahmed |
-| **15 يونيو** | Dashboard، Check-in، قاعدة البيانات | Wesam + Ratul |
-| **16 يونيو** | دمج BERT + Gemini APIs | Ahmed + Ratul |
-| **17 يونيو** | Human-in-the-Loop + Guardrails | Ayat + Raghad |
-| **18 يونيو** | Forecast (ARIMA) + تحليلات | Ratul + Ayat |
-| **19 يونيو** | تحسين UI + اختبار شامل | Raghad + الفريق |
-| **20 يونيو** | تصوير فيديو + تعبئة Devpost + تسليم | الفريق كاملاً |
+| **June 14** | Environment setup, Supabase, Auth screens | Wesam + Ahmed |
+| **June 15** | Dashboard, Check-in screen, Database | Wesam + Ratul |
+| **June 16** | BERT + Gemini API integration | Ahmed + Ratul |
+| **June 17** | Human-in-the-Loop + Guardrails | Ayat + Raghad |
+| **June 18** | Forecast (ARIMA) + Analytics | Ratul + Ayat |
+| **June 19** | UI improvements + Comprehensive testing | Raghad + Team |
+| **June 20** | Video recording + Devpost submission | Entire Team |
 
 ---
 
-## 10. سيناريو فيديو العرض
+## 10. Video Pitch Script (3-5 minutes)
 
-| الوقت | المحتوى |
+| Time | Content |
 | :--- | :--- |
-| **0:00-0:30** | Hook: إحصائية HBR (14% من مستخدمي AI يعانون من "Brain Fry") |
-| **0:30-1:15** | شرح المشكلة (إرهاق معرفي صامت، لا توجد أداة متخصصة) |
-| **1:15-2:00** | شرح الحل: Mental Load – كيف يعمل؟ |
-| **2:00-2:45** | Demo مباشر: Check-in → Score → توصية |
-| **2:45-3:15** | Human-in-the-Loop: زر "هل التحليل دقيق؟" + متابعة التوصية |
-| **3:15-3:45** | Responsible AI: خصوصية، أمان، حماية القاصرين |
-| **3:45-4:00** | خاتمة ودعوة: "جهاز مناعة رقمي لعقلك" |
+| **0:00-0:30** | Hook: HBR statistic – 14% of AI users suffer from "Brain Fry" |
+| **0:30-1:15** | Explain the problem (silent cognitive overload, no dedicated tool) |
+| **1:15-2:00** | Introduce the solution: How Mental Load works |
+| **2:00-2:45** | Live Demo: Check-in → Score → Recommendation |
+| **2:45-3:15** | Human-in-the-Loop: "Is this accurate?" button + follow-up |
+| **3:15-3:45** | Responsible AI: Privacy, security, parental consent |
+| **3:45-4:00** | Conclusion & Call to action: "A digital immune system for your brain" |
 
 ---
 
-## 11. متطلبات Devpost (النماذج الجاهزة)
+## 11. Devpost Requirements (Ready-to-Copy)
 
-### AI Architecture (600 حرف)
+### AI Architecture (600 chars)
 
 ```
 INPUTS: Free text + optional voice + AI tools count + usage pattern
@@ -265,7 +265,7 @@ OUTPUT: Score (1-5) + recommendation text + warning if score > 4
 CONFIDENCE PROTECTION: If confidence < 75% → user correction
 ```
 
-### Human-in-the-Loop (500 حرف)
+### Human-in-the-Loop (500 chars)
 
 ```
 DECISIONS AI DOES NOT MAKE:
@@ -280,7 +280,7 @@ DESIGN:
 - Parental consent for users under 18
 ```
 
-### AI Tools Used (800 حرف)
+### AI Tools Used (800 chars)
 
 ```
 1. BERT-base-uncased (Hugging Face) - free - Text classification
@@ -295,31 +295,31 @@ Used free credits from Google and OpenAI. No actual money paid.
 
 ---
 
-## 12. قائمة المراجعة النهائية
+## 12. Final Pre-Submission Checklist
 
-### قبل التسليم بـ 24 ساعة:
+### Complete 24 hours before the deadline:
 
-| البند | تم ✅ |
+| Item | Done ✅ |
 | :--- | :--- |
-| Qualifier Approval Code مدخل في Devpost | ☐ |
-| جميع النصوص ضمن الحد الأقصى للحروف | ☐ |
-| الفيديو مدته بين 3 و 5 دقائق | ☐ |
-| رابط الفيديو يعمل | ☐ |
-| رابط GitHub يعمل | ☐ |
-| جميع أعضاء الفريق مذكورون في Devpost | ☐ |
-| Track = Undergraduate | ☐ |
-| Challenge = Productivity | ☐ |
-| AI Architecture مكتمل | ☐ |
-| Human-in-the-Loop مكتمل | ☐ |
-| Responsible AI Guardrail مكتمل | ☐ |
-| Privacy & Consent موجودة في التطبيق | ☐ |
-| تم الضغط على Submit النهائي | ☐ |
+| Qualifier Approval Code entered correctly in Devpost | ☐ |
+| All text fields within character limits | ☐ |
+| Video duration is between 3 and 5 minutes | ☐ |
+| Video link works (no login required) | ☐ |
+| GitHub repository link works | ☐ |
+| All team members listed in Devpost | ☐ |
+| Track = Undergraduate selected | ☐ |
+| Challenge = Productivity selected | ☐ |
+| AI Architecture section completed | ☐ |
+| Human-in-the-Loop section completed | ☐ |
+| Responsible AI Guardrail section completed | ☐ |
+| Privacy & Consent screen exists in the app | ☐ |
+| **Final Submit button clicked** (not Save Draft) | ☐ |
 
 ---
 
-## 👥 فريق GOAI
+## 👥 Team GOAI
 
-| العضو | الدور | البريد الإلكتروني |
+| Name | Role | Email |
 | :--- | :--- | :--- |
 | Ahmed Eid Abo Baid | AI Engineer | eidez1252002@gmail.com |
 | Ayat Zaky Shehada Hamed | Data Scientist | ayat.zaky.hamed@gmail.com |
@@ -335,6 +335,3 @@ Used free credits from Google and OpenAI. No actual money paid.
   <hr/>
   <p><strong>GitHub Repository:</strong> <a href="https://github.com/Alhayek7/mental-load">https://github.com/Alhayek7/mental-load</a></p>
 </div>
-```
-
----
