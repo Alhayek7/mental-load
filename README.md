@@ -288,5 +288,4 @@ Distributed under the **MIT License**.
   <p>⭐ Star this repository if you like the project!</p>
   <p>© 2026 Team GOAI</p>
 </div>
-```
 
