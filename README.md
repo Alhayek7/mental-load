@@ -290,5 +290,3 @@ Distributed under the **MIT License**.
 </div>
 ```
 
-
-**أخبرني "تم" بعد أن تنتهي من إنشاء الملف.**
