@@ -1,12 +1,16 @@
 // ============================================================
 // 📄 lib/screens/notifications_screen.dart
 // 📌 صفحة الإشعارات - Notifications Screen
+// 🏆 Mental Load — Team GOAI — USAII Hackathon 2026
 // ============================================================
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../services/supabase_service.dart';
+import 'dart:convert';  // ✅ لـ jsonEncode و jsonDecode
+import 'dart:io';       // ✅ لـ InternetAddress
+import 'package:shared_preferences/shared_preferences.dart';  // ✅ لـ SharedPreferences
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -17,62 +21,74 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   final SupabaseService _supabaseService = SupabaseService();
-  
+  List<Map<String, dynamic>> _cachedNotifications = [];
+  bool _isOffline = false;
   List<Map<String, dynamic>> _notifications = [];
   bool _isLoading = true;
   bool _isUpdating = false;
+  String? _errorMessage;
 
-  // بيانات تجريبية (سيتم استبدالها ببيانات حقيقية من Supabase)
+  // ✅ ألوان وأنواع الإشعارات
+  static const Map<String, Color> _typeColors = {
+    'alert': Color(0xFFE76F51),
+    'tip': Color(0xFF2D6A4F),
+    'reminder': Color(0xFF1A5F7A),
+    'achievement': Color(0xFFF4A261),
+  };
+
+  static const Map<String, IconData> _typeIcons = {
+    'alert': Icons.warning_amber_rounded,
+    'tip': Icons.lightbulb_outline,
+    'reminder': Icons.checklist_outlined,
+    'achievement': Icons.emoji_events_outlined,
+  };
+
+  // ✅ بيانات تجريبية (للاختبار)
   final List<Map<String, dynamic>> _sampleNotifications = [
     {
       'id': '1',
       'title': '🌟 High Cognitive Load Detected!',
-      'body': 'We noticed you\'ve been using AI tools continuously for 4 hours. Take a 15-minute break to recharge.',
+      'body':
+          'We noticed you\'ve been using AI tools continuously for 4 hours. Take a 15-minute break to recharge.',
       'type': 'alert',
       'is_read': false,
-      'created_at': '2 minutes ago',
-      'icon': Icons.warning_amber_rounded,
-      'color': Color(0xFFE76F51),
+      'created_at': DateTime.now().subtract(const Duration(minutes: 2)),
     },
     {
       'id': '2',
       'title': '📊 Weekly Report Ready',
-      'body': 'Your weekly cognitive load summary is now available. Check your patterns and progress.',
+      'body':
+          'Your weekly cognitive load summary is now available. Check your patterns and progress.',
       'type': 'tip',
       'is_read': false,
-      'created_at': '1 hour ago',
-      'icon': Icons.analytics_outlined,
-      'color': Color(0xFF5235C5),
+      'created_at': DateTime.now().subtract(const Duration(hours: 1)),
     },
     {
       'id': '3',
       'title': '💡 Tip: Reduce AI Tools',
-      'body': 'Using fewer AI tools simultaneously can reduce cognitive load. Try sticking to 2 tools per session.',
+      'body':
+          'Using fewer AI tools simultaneously can reduce cognitive load. Try sticking to 2 tools per session.',
       'type': 'tip',
       'is_read': true,
-      'created_at': '3 hours ago',
-      'icon': Icons.lightbulb_outline,
-      'color': Color(0xFF2D6A4F),
+      'created_at': DateTime.now().subtract(const Duration(hours: 3)),
     },
     {
       'id': '4',
       'title': '🎯 Daily Check-in Reminder',
-      'body': 'Don\'t forget to complete your daily check-in. It only takes 2 minutes!',
+      'body':
+          'Don\'t forget to complete your daily check-in. It only takes 2 minutes!',
       'type': 'reminder',
       'is_read': true,
-      'created_at': 'Yesterday',
-      'icon': Icons.checklist_outlined,
-      'color': Color(0xFF1A5F7A),
+      'created_at': DateTime.now().subtract(const Duration(days: 1)),
     },
     {
       'id': '5',
       'title': '🏆 Achievement Unlocked!',
-      'body': 'You\'ve completed 10 check-ins! Keep up the great work and stay consistent.',
+      'body':
+          'You\'ve completed 10 check-ins! Keep up the great work and stay consistent.',
       'type': 'achievement',
       'is_read': true,
-      'created_at': '2 days ago',
-      'icon': Icons.emoji_events_outlined,
-      'color': Color(0xFFF4A261),
+      'created_at': DateTime.now().subtract(const Duration(days: 2)),
     },
   ];
 
@@ -82,57 +98,159 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _loadNotifications();
   }
 
-  Future<void> _loadNotifications() async {
-    setState(() => _isLoading = true);
+  // ============================================================
+  // جلب الإشعارات
+  // ============================================================
+Future<void> _loadNotifications() async {
+  setState(() {
+    _isLoading = true;
+    _errorMessage = null;
+  });
 
-    try {
-      final user = _supabaseService.currentUser;
-      if (user != null) {
-        // جلب الإشعارات من قاعدة البيانات
-        final response = await _supabaseService.client
-            .from('notifications')
-            .select()
-            .eq('user_id', user.id)
-            .order('created_at', ascending: false);
-
-        if (response.isNotEmpty) {
-          setState(() {
-            _notifications = response.map((item) {
-              return {
-                'id': item['id'],
-                'title': item['title'],
-                'body': item['body'],
-                'type': item['type'],
-                'is_read': item['is_read'] ?? false,
-                'created_at': _formatTime(DateTime.parse(item['created_at'])),
-                'icon': _getIconForType(item['type']),
-                'color': _getColorForType(item['type']),
-              };
-            }).toList();
-            _isLoading = false;
-          });
-        } else {
-          // استخدام البيانات التجريبية
-          setState(() {
-            _notifications = _sampleNotifications;
-            _isLoading = false;
-          });
-        }
-      } else {
+  try {
+    // ✅ التحقق من الاتصال بالإنترنت
+    final hasInternet = await _hasInternet();
+    
+    if (!hasInternet) {
+      // ❌ لا يوجد إنترنت → عرض البيانات المخزنة محلياً
+      final cached = await _loadNotificationsLocally();
+      if (cached.isNotEmpty) {
         setState(() {
-          _notifications = _sampleNotifications;
+          _notifications = cached;
+          _isOffline = true;
           _isLoading = false;
         });
+        return;
+      } else {
+        // لا توجد بيانات مخزنة → عرض البيانات التجريبية
+        setState(() {
+          _notifications = _sampleNotifications.map((item) => _formatSampleNotification(item)).toList();
+          _isOffline = true;
+          _isLoading = false;
+        });
+        return;
       }
-    } catch (e) {
-      debugPrint('❌ Error loading notifications: $e');
+    }
+
+    // ✅ يوجد إنترنت → جلب من Supabase
+    final user = _supabaseService.currentUser;
+    
+    if (user != null) {
+      final response = await _supabaseService.client
+          .from('notifications')
+          .select()
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false)
+          .limit(50);
+
+      if (response.isNotEmpty) {
+        final formatted = response.map((item) => _formatNotification(item)).toList();
+        setState(() {
+          _notifications = formatted;
+          _isOffline = false;
+          _isLoading = false;
+        });
+        // ✅ حفظ في التخزين المحلي
+        await _saveNotificationsLocally(formatted);
+        return;
+      }
+    }
+    
+    // لا توجد بيانات في Supabase → استخدام التجريبية
+    final sample = _sampleNotifications.map((item) => _formatSampleNotification(item)).toList();
+    setState(() {
+      _notifications = sample;
+      _isOffline = false;
+      _isLoading = false;
+    });
+    await _saveNotificationsLocally(sample);
+    
+  } catch (e) {
+    debugPrint('❌ Error loading notifications: $e');
+    // ✅ في حالة الخطأ، استخدم البيانات المخزنة مؤقتاً
+    final cached = await _loadNotificationsLocally();
+    if (cached.isNotEmpty) {
       setState(() {
-        _notifications = _sampleNotifications;
+        _notifications = cached;
+        _isOffline = true;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _notifications = _sampleNotifications.map((item) => _formatSampleNotification(item)).toList();
+        _isOffline = true;
         _isLoading = false;
       });
     }
   }
+}
 
+// ============================================================
+// Offline Banner
+// ============================================================
+Widget _buildOfflineBanner() {
+  return Container(
+    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF4A261).withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: const Color(0xFFF4A261).withValues(alpha: 0.3),
+      ),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.wifi_off, color: Color(0xFFF4A261), size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'You\'re offline. Showing cached notifications.',
+            style: GoogleFonts.manrope(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFFF4A261),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+  // ============================================================
+  // تنسيق الإشعار من Supabase
+  // ============================================================
+  Map<String, dynamic> _formatNotification(Map<String, dynamic> item) {
+    return {
+      'id': item['id'].toString(),
+      'title': item['title'] ?? 'Notification',
+      'body': item['body'] ?? '',
+      'type': item['type'] ?? 'tip',
+      'is_read': item['is_read'] ?? false,
+      'created_at': _formatTime(DateTime.parse(item['created_at'])),
+      'raw_date': DateTime.parse(item['created_at']),
+      'icon': _typeIcons[item['type']] ?? Icons.notifications_outlined,
+      'color': _typeColors[item['type']] ?? const Color(0xFF5235C5),
+    };
+  }
+
+  // ============================================================
+  // تنسيق الإشعار التجريبي
+  // ============================================================
+  Map<String, dynamic> _formatSampleNotification(Map<String, dynamic> item) {
+    return {
+      ...item,
+      'created_at': _formatTime(item['created_at']),
+      'raw_date': item['created_at'],
+      'icon': _typeIcons[item['type']] ?? Icons.notifications_outlined,
+      'color': _typeColors[item['type']] ?? const Color(0xFF5235C5),
+    };
+  }
+
+  // ============================================================
+  // تنسيق الوقت
+  // ============================================================
   String _formatTime(DateTime date) {
     final now = DateTime.now();
     final diff = now.difference(date);
@@ -150,37 +268,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  IconData _getIconForType(String type) {
-    switch (type) {
-      case 'alert':
-        return Icons.warning_amber_rounded;
-      case 'tip':
-        return Icons.lightbulb_outline;
-      case 'reminder':
-        return Icons.checklist_outlined;
-      case 'achievement':
-        return Icons.emoji_events_outlined;
-      default:
-        return Icons.notifications_outlined;
-    }
-  }
-
-  Color _getColorForType(String type) {
-    switch (type) {
-      case 'alert':
-        return const Color(0xFFE76F51);
-      case 'tip':
-        return const Color(0xFF2D6A4F);
-      case 'reminder':
-        return const Color(0xFF1A5F7A);
-      case 'achievement':
-        return const Color(0xFFF4A261);
-      default:
-        return const Color(0xFF5235C5);
-    }
-  }
-
+  // ============================================================
+  // وضع علامة مقروء
+  // ============================================================
   Future<void> _markAsRead(String id) async {
+    // تحديث واجهة المستخدم فوراً
     setState(() {
       _notifications = _notifications.map((item) {
         if (item['id'] == id) {
@@ -196,7 +288,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         await _supabaseService.client
             .from('notifications')
             .update({'is_read': true})
-            .eq('id', int.parse(id))
+            .eq('id', int.tryParse(id) ?? 0)
             .eq('user_id', user.id);
       }
     } catch (e) {
@@ -204,6 +296,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  // ============================================================
+  // وضع علامة مقروء للكل
+  // ============================================================
   Future<void> _markAllAsRead() async {
     setState(() {
       _isUpdating = true;
@@ -220,24 +315,136 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             .update({'is_read': true})
             .eq('user_id', user.id);
       }
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            // ✅ إزالة const
+            content: Text('Message'),
+            backgroundColor: const Color(0xFF2D6A4F),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
     } catch (e) {
       debugPrint('❌ Error marking all as read: $e');
     }
 
-    setState(() => _isUpdating = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('All notifications marked as read'),
-        backgroundColor: Color(0xFF2D6A4F),
-      ),
-    );
+    if (mounted) {
+      setState(() => _isUpdating = false);
+    }
   }
 
+  // ============================================================
+  // حذف جميع الإشعارات
+  // ============================================================
+  Future<void> _deleteAllNotifications() async {
+    // ✅ نافذة تأكيد
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Delete All Notifications',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFE76F51),
+          ),
+        ),
+        content: const Text(
+          'Are you sure you want to delete all notifications? This action cannot be undone.',
+          style: TextStyle(fontSize: 14, color: Color(0xFF6B6B7A)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFF8A8A9A)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE76F51),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Delete All'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() {
+      _isUpdating = true;
+    });
+
+    try {
+      final user = _supabaseService.currentUser;
+      if (user != null) {
+        // ✅ حذف من Supabase
+        await _supabaseService.client
+            .from('notifications')
+            .delete()
+            .eq('user_id', user.id);
+      }
+
+      // ✅ حذف من الواجهة
+      setState(() {
+        _notifications = [];
+        _isUpdating = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('All notifications deleted'),
+            backgroundColor: const Color(0xFF2D6A4F),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Error deleting notifications: $e');
+      setState(() => _isUpdating = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to delete notifications'),
+            backgroundColor: const Color(0xFFE76F51),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // ============================================================
+  // عدد الإشعارات غير المقروءة
+  // ============================================================
   int get _unreadCount {
     return _notifications.where((item) => item['is_read'] == false).length;
   }
 
+  // ============================================================
+  // Build
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -245,25 +452,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: _buildAppBar(),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF5235C5)),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: Color(0xFF5235C5)),
+                  SizedBox(height: 16),
+                  Text(
+                    'Loading notifications...',
+                    style: TextStyle(color: Color(0xFF8A8A9A), fontSize: 14),
+                  ),
+                ],
+              ),
             )
+          : _errorMessage != null
+          ? _buildErrorState()
           : Column(
               children: [
-                // ============================================================
-                // Actions Bar
-                // ============================================================
                 _buildActionsBar(),
-
                 const SizedBox(height: 8),
-
-                // ============================================================
-                // Notifications List
-                // ============================================================
                 Expanded(
                   child: _notifications.isEmpty
                       ? _buildEmptyState()
                       : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           physics: const BouncingScrollPhysics(),
                           itemCount: _notifications.length,
                           itemBuilder: (context, index) {
@@ -277,12 +491,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  // ============================================================
+  // App Bar
+  // ============================================================
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Color(0xFF5235C5)),
+        icon: const Icon(
+          Icons.arrow_back_ios_new,
+          color: Color(0xFF5235C5),
+          size: 20,
+        ),
         onPressed: () => Navigator.pop(context),
       ),
       title: Row(
@@ -290,17 +511,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           Text(
             'Notifications',
             style: GoogleFonts.manrope(
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.w800,
               color: const Color(0xFF1A1A2E),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           if (_unreadCount > 0)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
-                color: const Color(0xFFE76F51),
+                gradient: LinearGradient(
+                  // ✅ بدون const
+                  colors: [const Color(0xFFE76F51), const Color(0xFFFF6B6B)],
+                ),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -317,6 +541,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  // ============================================================
+  // Actions Bar
+  // ============================================================
   Widget _buildActionsBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -331,170 +558,302 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               color: const Color(0xFF8A8A9A),
             ),
           ),
-          if (_unreadCount > 0)
-            GestureDetector(
-              onTap: _isUpdating ? null : _markAllAsRead,
-              child: Row(
-                children: [
-                  if (_isUpdating)
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Color(0xFF5235C5),
+          Row(
+            children: [
+              // ✅ زر حذف الكل (جديد)
+              if (_notifications.isNotEmpty)
+                GestureDetector(
+                  onTap: _isUpdating ? null : _deleteAllNotifications,
+                  child: Row(
+                    children: [
+                      if (_isUpdating)
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFFE76F51),
+                          ),
+                        )
+                      else
+                        const Icon(
+                          Icons.delete_outline,
+                          color: Color(0xFFE76F51),
+                          size: 18,
+                        ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Delete all',
+                        style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFE76F51),
+                        ),
                       ),
-                    )
-                  else
-                    const Icon(
-                      Icons.done_all_outlined,
-                      color: Color(0xFF5235C5),
-                      size: 18,
-                    ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Mark all read',
-                    style: GoogleFonts.manrope(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF5235C5),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              const SizedBox(width: 16),
+              // ✅ زر تحديد الكل (موجود)
+              if (_unreadCount > 0)
+                GestureDetector(
+                  onTap: _isUpdating ? null : _markAllAsRead,
+                  child: Row(
+                    children: [
+                      if (_isUpdating)
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF5235C5),
+                          ),
+                        )
+                      else
+                        const Icon(
+                          Icons.done_all_outlined,
+                          color: Color(0xFF5235C5),
+                          size: 18,
+                        ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Mark all read',
+                        style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF5235C5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildNotificationItem(Map<String, dynamic> notification, int index) {
-    final isRead = notification['is_read'] as bool;
+// ============================================================
+// Notification Item (مع زر حذف أنيق)
+// ============================================================
+Widget _buildNotificationItem(Map<String, dynamic> notification, int index) {
+  final isRead = notification['is_read'] as bool;
+  final color = notification['color'] as Color;
+  final icon = notification['icon'] as IconData;
 
-    return GestureDetector(
-      onTap: () {
-        if (!isRead) {
-          _markAsRead(notification['id']);
-        }
-        // عرض تفاصيل الإشعار
-        _showNotificationDetails(notification);
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isRead ? Colors.white : const Color(0xFFF0EDFF),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isRead ? const Color(0xFFE8E8EE) : const Color(0xFF5235C5).withValues(alpha: 0.2),
-            width: isRead ? 1 : 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+  return GestureDetector(
+    onTap: () {
+      if (!isRead) {
+        _markAsRead(notification['id']);
+      }
+      _showNotificationDetails(notification);
+    },
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isRead ? Colors.white : color.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isRead ? const Color(0xFFE8E8EE) : color.withValues(alpha: 0.2),
+          width: isRead ? 1 : 2,
         ),
-        child: Row(
-          children: [
-            // ============================================================
-            // Icon
-            // ============================================================
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: (notification['color'] as Color).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                notification['icon'] as IconData,
-                color: notification['color'] as Color,
-                size: 24,
-              ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ✅ أيقونة
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            const SizedBox(width: 14),
-
-            // ============================================================
-            // Content
-            // ============================================================
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          notification['title'],
-                          style: GoogleFonts.manrope(
-                            fontSize: 15,
-                            fontWeight: isRead ? FontWeight.w600 : FontWeight.w700,
-                            color: isRead ? const Color(0xFF1A1A2E) : const Color(0xFF5235C5),
-                          ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(width: 12),
+          
+          // ✅ المحتوى
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ✅ العنوان + نقطة غير مقروء
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        notification['title'],
+                        style: GoogleFonts.manrope(
+                          fontSize: 14,
+                          fontWeight: isRead ? FontWeight.w600 : FontWeight.w700,
+                          color: isRead ? const Color(0xFF1A1A2E) : color,
                         ),
                       ),
-                      if (!isRead)
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF5235C5),
-                            shape: BoxShape.circle,
+                    ),
+                    if (!isRead)
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                
+                // ✅ النص
+                Text(
+                  notification['body'],
+                  style: GoogleFonts.manrope(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: const Color(0xFF6B6B7A),
+                    height: 1.4,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                
+                // ✅ الوقت + زر السلة (في صف واحد)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // الوقت
+                    Text(
+                      notification['created_at'],
+                      style: GoogleFonts.manrope(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w400,
+                        color: const Color(0xFFB0B0BA),
+                      ),
+                    ),
+                    
+                    // ✅ زر السلة (على اليمين بجانب الوقت)
+                    GestureDetector(
+                      onTap: () => _deleteNotification(notification['id']),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE76F51).withValues(alpha: 0.06),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFFE76F51).withValues(alpha: 0.12),
+                            width: 1,
                           ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    notification['body'],
-                    style: GoogleFonts.manrope(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                      color: const Color(0xFF6B6B7A),
-                      height: 1.4,
+                        child: const Icon(
+                          Icons.delete_outline_rounded,
+                          color: Color(0xFFE76F51),
+                          size: 16,
+                        ),
+                      ),
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    notification['created_at'],
-                    style: GoogleFonts.manrope(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w400,
-                      color: const Color(0xFFB0B0BA),
-                    ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
+        ],
+      ),
+    ),
+  ).animate().fadeIn(delay: (50 + index * 30).ms).slideX(
+    begin: 0.05,
+    end: 0,
+    duration: 400.ms,
+    delay: (50 + index * 30).ms,
+  );
+}
+
+// ============================================================
+// حذف إشعار فردي
+// ============================================================
+Future<void> _deleteNotification(String id) async {
+  // ✅ تحديث الواجهة فوراً
+  setState(() {
+    _notifications = _notifications.where((item) => item['id'] != id).toList();
+  });
+
+  try {
+    final user = _supabaseService.currentUser;
+    if (user != null) {
+      await _supabaseService.client
+          .from('notifications')
+          .delete()
+          .eq('id', int.tryParse(id) ?? 0)
+          .eq('user_id', user.id);
+    }
+    debugPrint('✅ Notification deleted: $id');
+  } catch (e) {
+    debugPrint('❌ Error deleting notification: $e');
+    // ✅ في حالة الخطأ، إعادة الإشعار إلى القائمة
+    setState(() {
+      _loadNotifications();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Failed to delete notification'),
+        backgroundColor: const Color(0xFFE76F51),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
         ),
       ),
-    ).animate().fadeIn(delay: (50 + index * 30).ms).slideX(
-      begin: 0.05,
-      end: 0,
-      duration: 400.ms,
-      delay: (50 + index * 30).ms,
     );
   }
+}
 
+  // ============================================================
+  // تفاصيل الإشعار
+  // ============================================================
   void _showNotificationDetails(Map<String, dynamic> notification) {
+    final color = notification['color'] as Color;
+    final icon = notification['icon'] as IconData;
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => Container(
         padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ========== Header ==========
+            // ✅ Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD1D1D8),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // ✅ Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -503,29 +862,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: (notification['color'] as Color).withValues(alpha: 0.1),
+                        color: color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(
-                        notification['icon'] as IconData,
-                        color: notification['color'] as Color,
-                        size: 28,
-                      ),
+                      child: Icon(icon, color: color, size: 28),
                     ),
                     const SizedBox(width: 12),
-                    Text(
-                      notification['title'],
-                      style: GoogleFonts.manrope(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF1A1A2E),
+                    Flexible(
+                      child: Text(
+                        notification['title'],
+                        style: GoogleFonts.manrope(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF1A1A2E),
+                        ),
                       ),
                     ),
                   ],
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
+                  icon: const Icon(Icons.close, color: Color(0xFF8A8A9A)),
                 ),
               ],
             ),
@@ -579,6 +936,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
+                  elevation: 0,
                 ),
                 child: const Text('Close'),
               ),
@@ -590,15 +948,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  // ============================================================
+  // Empty State
+  // ============================================================
   Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.notifications_off_outlined,
-            size: 80,
-            color: Colors.grey[300],
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F8),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.notifications_off_outlined,
+              size: 40,
+              color: Colors.grey[400],
+            ),
           ),
           const SizedBox(height: 16),
           Text(
@@ -606,7 +975,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             style: GoogleFonts.manrope(
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFF6B6B7A),
+              color: const Color(0xFF1A1A2E),
             ),
           ),
           const SizedBox(height: 8),
@@ -617,9 +986,101 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               fontWeight: FontWeight.w400,
               color: const Color(0xFF8A8A9A),
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
+
+  // ============================================================
+  // Error State
+  // ============================================================
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: const Color(0xFFE76F51)),
+          const SizedBox(height: 16),
+          Text(
+            _errorMessage ?? 'Something went wrong',
+            style: GoogleFonts.manrope(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFFE76F51),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Please try again later',
+            style: GoogleFonts.manrope(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: const Color(0xFF8A8A9A),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _loadNotifications,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF5235C5),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+// حفظ الإشعارات محلياً
+// ============================================================
+Future<void> _saveNotificationsLocally(List<Map<String, dynamic>> notifications) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = jsonEncode(notifications);
+    await prefs.setString('cached_notifications', jsonString);
+    await prefs.setString('cached_time', DateTime.now().toIso8601String());
+    debugPrint('✅ Notifications saved locally');
+  } catch (e) {
+    debugPrint('❌ Error saving notifications locally: $e');
+  }
+}
+
+// ============================================================
+// جلب الإشعارات من التخزين المحلي
+// ============================================================
+Future<List<Map<String, dynamic>>> _loadNotificationsLocally() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString('cached_notifications');
+    if (jsonString != null) {
+      final List<dynamic> data = jsonDecode(jsonString);
+      debugPrint('✅ Loaded ${data.length} notifications from cache');
+      return data.cast<Map<String, dynamic>>();
+    }
+  } catch (e) {
+    debugPrint('❌ Error loading cached notifications: $e');
+  }
+  return [];
+}
+
+// ============================================================
+// التحقق من وجود إنترنت
+// ============================================================
+Future<bool> _hasInternet() async {
+  try {
+    final result = await InternetAddress.lookup('google.com');
+    return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+  } catch (_) {
+    return false;
+  }
+}
+
 }

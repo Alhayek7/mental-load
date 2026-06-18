@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
 import 'home_dashboard.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/sync_service.dart';
 
 class InitialQuestionnaire extends StatefulWidget {
   const InitialQuestionnaire({super.key});
@@ -112,61 +113,82 @@ List<Widget> get _pages => [
     }
   }
 
-  Future<void> _saveAnswers() async {
-    final user = _supabaseService.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please login first'),
-          backgroundColor: Color(0xFFE76F51),
-        ),
-      );
-      return;
-    }
+Future<void> _saveAnswers() async {
+  setState(() => _isLoading = true);
 
-    setState(() => _isLoading = true);
+  final prefs = await SharedPreferences.getInstance();
+  final isGuest = prefs.getBool('isGuest') ?? false;
 
-    try {
-      final cognitiveLoadScore = _calculateScore();
+  // قيم افتراضية في حالة Skip
+  final tools = _selectedTools.isEmpty ? ['Other'] : _selectedTools;
+  final usage = _dailyUsage.isEmpty ? 'Less than 1 hour' : _dailyUsage;
+  final relies = _reliesOnAI ?? false;
+  final fatigue = _fatigueTime.isEmpty ? 'Evening' : _fatigueTime;
+  final peakFatigue = _peakFatigueTime.isEmpty ? 'Evening' : _peakFatigueTime;
+  final score = _calculateScore();
 
-      await _supabaseService.client.from('questionnaire_history').insert({
-        'user_id': user.id,
-        'selected_tools': _selectedTools,
-        'daily_usage': _dailyUsage,
-        'relies_on_ai': _reliesOnAI,
-        'focus_difficulty': _focusDifficulty,
-        'mental_fatigue': _fatigueTime,
-        'fatigue_time': _peakFatigueTime,
-        'cognitive_load_score': cognitiveLoadScore,
-        'created_at': DateTime.now().toIso8601String(),
-      });
+  final data = {
+    'selected_tools': tools,
+    'daily_usage': usage,
+    'relies_on_ai': relies,
+    'focus_difficulty': _focusDifficulty,
+    'mental_fatigue': fatigue,
+    'fatigue_time': peakFatigue,
+    'cognitive_load_score': score,
+    'created_at': DateTime.now().toIso8601String(),
+  };
 
-      await _supabaseService.client.from('users').upsert({
-        'id': user.id,
-        'questionnaire_completed': true,
-      });
-
-      // ✅ حفظ في SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('hasCompletedQuestionnaire', true);
-      debugPrint('✅ Questionnaire completed!');
-
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => HomeDashboard()),
-        );
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to save. Please try again.'),
-          backgroundColor: Color(0xFFE76F51),
-        ),
+  if (isGuest) {
+    // Guest - حفظ محلي فقط
+    await prefs.setBool('hasCompletedQuestionnaire', true);
+    debugPrint('✅ Guest - saved locally');
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => HomeDashboard()),
       );
     }
+    return;
   }
+
+  final user = _supabaseService.currentUser;
+  if (user == null) {
+    setState(() => _isLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please login first'),
+      backgroundColor: Color(0xFFE76F51)),
+    );
+    return;
+  }
+
+  try {
+    // ✅ حاول Supabase أولاً
+    data['user_id'] = user.id;
+    await _supabaseService.client
+        .from('questionnaire_history')
+        .insert(data);
+
+    await _supabaseService.client.from('users').upsert({
+      'id': user.id,
+      'questionnaire_completed': true,
+    });
+
+    debugPrint('✅ Saved to Supabase');
+  } catch (e) {
+    // ❌ فشل الإنترنت - احفظ محلياً
+    await SyncService.savePending(data);
+    debugPrint('📴 No internet - saved locally for later sync');
+  }
+
+  await prefs.setBool('hasCompletedQuestionnaire', true);
+
+  if (mounted) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => HomeDashboard()),
+    );
+  }
+}
 
   int _calculateScore() {
     int score = 2;
@@ -210,18 +232,16 @@ List<Widget> get _pages => [
                 ),
               )
             : null,
-        actions: [
-          if (_currentPage > 0)
-            TextButton(
-              onPressed: () {
-                _pageController.jumpToPage(totalPages - 1);
-              },
-              child: const Text(
-                'Skip',
-                style: TextStyle(fontSize: 14, color: Color(0xFF8A8A9A)),
-              ),
-            ),
-        ],
+actions: [
+  if (_currentPage > 0)
+    TextButton(
+      onPressed: () => _saveAnswers(),
+      child: const Text(
+        'Skip',
+        style: TextStyle(fontSize: 14, color: Color(0xFF8A8A9A)),
+      ),
+    ),
+],
       ),
       body: Column(
         children: [
@@ -574,58 +594,33 @@ Widget _buildMultiSelect(List<String> options) {
     spacing: 10,
     runSpacing: 10,
     children: options.map((option) {
-      final isSelected = _selectedTools.contains(option);
-      
-      return GestureDetector(
-        onTap: () {
+      return ChoiceChip(
+        label: Text(option),
+        selected: _selectedTools.contains(option),
+        onSelected: (selected) {
           setState(() {
-            if (isSelected) {
-              _selectedTools.remove(option);
-            } else {
+            if (selected) {
               if (!_selectedTools.contains(option)) {
                 _selectedTools.add(option);
               }
+            } else {
+              _selectedTools.remove(option);
             }
-            debugPrint('🔍 Selected tools: $_selectedTools');
           });
         },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF5E35B1) : Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isSelected ? const Color(0xFF5E35B1) : Colors.grey.shade300,
-              width: isSelected ? 2 : 1,
-            ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFF5E35B1).withValues(alpha: 0.2),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (isSelected)
-                const Icon(Icons.check, color: Colors.white, size: 16),
-              if (isSelected) const SizedBox(width: 6),
-              Text(
-                option,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? Colors.white : const Color(0xFF1A1A2E),
-                ),
-              ),
-            ],
-          ),
+        selectedColor: const Color(0xFF5E35B1),
+        backgroundColor: Colors.white,
+        labelStyle: TextStyle(
+          color: _selectedTools.contains(option) ? Colors.white : Colors.black,
         ),
+        side: BorderSide(
+          color: _selectedTools.contains(option) ? const Color(0xFF5E35B1) : Colors.grey.shade300,
+          width: 1.5,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       );
     }).toList(),
   );

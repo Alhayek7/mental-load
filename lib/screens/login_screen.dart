@@ -548,7 +548,47 @@ class _LoginScreenState extends State<LoginScreen> {
                     delay: 400.ms,
                   ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 16),
+
+// Guest Button
+SizedBox(
+  width: double.infinity,
+  child: OutlinedButton.icon(
+    onPressed: _loginAsGuest,
+    icon: const Icon(
+      Icons.person_outline_rounded,
+      size: 20,
+      color: Color(0xFF8A8A9A),
+    ),
+    label: const Text(
+      'Continue as Guest',
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+        color: Color(0xFF8A8A9A),
+        letterSpacing: 0.3,
+      ),
+    ),
+    style: OutlinedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      side: const BorderSide(
+        color: Color(0xFFDEDCFF),
+        width: 1.5,
+      ),
+      backgroundColor: Colors.white,
+    ),
+  ),
+)
+.animate()
+.fadeIn(duration: 400.ms, delay: 430.ms)
+.moveY(begin: 10, end: 0, duration: 400.ms, delay: 430.ms),
+
+const SizedBox(height: 32),
+
+// Or Sign Up Via
 
               // Or Sign Up Via
               const Center(
@@ -642,4 +682,26 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
+  Future<void> _loginAsGuest() async {
+  setState(() => _isLoading = true);
+
+  await Future.delayed(const Duration(milliseconds: 600));
+
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('isLoggedIn', true);
+  await prefs.setBool('isGuest', true);
+  await prefs.setBool('hasSeenOnboarding', true);
+  await prefs.setBool('hasAcceptedPrivacy', true);
+  await prefs.setBool('hasCompletedQuestionnaire', true);
+  await prefs.setString('loggedInUser', 'Guest');
+
+  if (mounted) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const HomeDashboard()),
+    );
+  }
+}
+
 }

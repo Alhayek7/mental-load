@@ -11,6 +11,7 @@ import 'screens/login_screen.dart';
 import 'screens/privacy_consent_screen.dart';
 import 'screens/initial_questionnaire.dart';
 import 'screens/home_dashboard.dart';
+import 'services/sync_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,11 +44,15 @@ class _MentalLoadAppState extends State<MentalLoadApp> {
 
   Future<void> _checkInitialRoute() async {
     final prefs = await SharedPreferences.getInstance();
-    
+
+    // ✅ حاول المزامنة عند فتح التطبيق
+    await SyncService.syncPending();
+
     // ✅ التحقق من حالة المستخدم
     final hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;
     final hasAcceptedPrivacy = prefs.getBool('hasAcceptedPrivacy') ?? false;
-    final hasCompletedQuestionnaire = prefs.getBool('hasCompletedQuestionnaire') ?? false;
+    final hasCompletedQuestionnaire =
+        prefs.getBool('hasCompletedQuestionnaire') ?? false;
     final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
 
     debugPrint('📊 User Status:');
@@ -58,7 +63,7 @@ class _MentalLoadAppState extends State<MentalLoadApp> {
 
     setState(() {
       _isLoading = false;
-      
+
       if (!isLoggedIn) {
         // ❌ غير مسجل دخول → شاشة تسجيل الدخول
         _initialRoute = 'login';

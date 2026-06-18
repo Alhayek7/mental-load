@@ -1,10 +1,11 @@
 // ============================================================
 // 📄 lib/screens/home_dashboard.dart
-// 📌 الصفحة الرئيسية - Dashboard (نسخة محسّنة مع الحفاظ على التصميم)
 // ============================================================
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/supabase_service.dart';
 import 'checkin_screen.dart';
@@ -27,31 +28,20 @@ class HomeDashboard extends StatefulWidget {
 class _HomeDashboardState extends State<HomeDashboard> {
   final SupabaseService _supabaseService = SupabaseService();
 
-  // ============================================================
-  // المتغيرات
-  // ============================================================
   bool _isLoading = true;
   Map<String, dynamic>? _userData;
   Map<String, dynamic>? _latestCheckin;
   List<Map<String, dynamic>> _recentCheckins = [];
   String _greeting = '';
+  String _userName = 'User';
   int _currentIndex = 0;
-
-  // ============================================================
-  // الصفحات (4 صفحات رئيسية)
-  // ============================================================
-  final List<Widget> _pages = [
-    const _DashboardContent(), // 0: Home
-    const InsightsScreen(), // 1: Insights (Patterns)
-    const HistoryScreen(), // 2: History
-    const SettingsScreen(), // 3: Settings
-  ];
+  bool _isGuest = false;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
     _setGreeting();
+    _loadData();
   }
 
   void _setGreeting() {
@@ -66,30 +56,50 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    if (mounted) setState(() => _isLoading = true);
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      _isGuest = prefs.getBool('isGuest') ?? false;
+
+      if (_isGuest) {
+        _userName = 'Guest';
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
       final user = _supabaseService.currentUser;
-      if (user == null) return;
-
-      final userData = await _supabaseService.getUserData(user.id);
-      if (userData != null) {
-        _userData = userData;
+      if (user == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
       }
 
-      final checkins = await _supabaseService.getRecentCheckins(
-        user.id,
-        limit: 1,
-      );
-      if (checkins.isNotEmpty) {
-        _latestCheckin = checkins.first;
+      // جلب اسم المستخدم من SharedPreferences
+      final storedUser = prefs.getString('loggedInUser') ?? '';
+      if (storedUser.isNotEmpty) {
+        final parts = storedUser.split('@');
+        _userName = parts[0].isNotEmpty ? parts[0] : 'User';
       }
 
-      final recent = await _supabaseService.getRecentCheckins(
-        user.id,
-        limit: 3,
-      );
-      _recentCheckins = recent;
+      // جلب البيانات من Supabase مع timeout
+      final results = await Future.wait([
+        _supabaseService.getUserData(user.id).timeout(const Duration(seconds: 5)),
+        _supabaseService.getRecentCheckins(user.id, limit: 1).timeout(const Duration(seconds: 5)),
+        _supabaseService.getRecentCheckins(user.id, limit: 3).timeout(const Duration(seconds: 5)),
+      ]).catchError((e) {
+        debugPrint('Error loading dashboard: $e');
+        return [null, <Map<String, dynamic>>[], <Map<String, dynamic>>[]];
+      });
+
+      if (mounted) {
+        setState(() {
+          _userData = results[0] as Map<String, dynamic>?;
+          final checkins1 = results[1] as List<Map<String, dynamic>>;
+          final checkins3 = results[2] as List<Map<String, dynamic>>;
+          _latestCheckin = checkins1.isNotEmpty ? checkins1.first : null;
+          _recentCheckins = checkins3;
+        });
+      }
     } catch (e) {
       debugPrint('Error loading dashboard: $e');
     } finally {
@@ -97,52 +107,35 @@ class _HomeDashboardState extends State<HomeDashboard> {
     }
   }
 
-  String _getScoreLabel(int score) {
-    if (score <= 2) return 'Low';
-    if (score == 3) return 'Medium';
-    return 'High';
-  }
-
-  Color _getScoreColor(int score) {
-    if (score <= 2) return const Color(0xFF2D6A4F);
-    if (score == 3) return const Color(0xFFF4A261);
-    return const Color(0xFFE76F51);
-  }
-
-  String _getAIProfile() {
-    final toolsCount = _userData?['total_checkins'] ?? 0;
-    if (toolsCount > 5) return 'Intensive AI User';
-    if (toolsCount > 2) return 'Regular AI User';
-    return 'Casual AI User';
-  }
-
-  String _getRecommendation() {
-    final latestScore = _latestCheckin?['cognitive_load_score'] ?? 0;
-    if (latestScore >= 4) {
-      return 'High cognitive load detected. Take a 20-minute break, reduce AI tools to 1-2, and practice deep breathing.';
-    } else if (latestScore == 3) {
-      return 'Moderate cognitive load detected. Consider taking a 10-minute break and reducing AI tools to 2 per session.';
-    } else {
-      return 'You\'re doing great! Keep up your current habits. Try to maintain this balance.';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    // ✅ البيانات تُمرَّر مباشرة لـ _DashboardContent
+    final pages = [
+      _DashboardContent(
+        userData: _userData,
+        latestCheckin: _latestCheckin,
+        recentCheckins: _recentCheckins,
+        userName: _userName,
+        greeting: _greeting,
+        isGuest: _isGuest,
+        onRefresh: _loadData,
+      ),
+      const InsightsScreen(),
+      const HistoryScreen(),
+      const SettingsScreen(),
+    ];
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F7FF),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: Color(0xFF5E35B1)),
             )
-          : IndexedStack(index: _currentIndex, children: _pages),
+          : IndexedStack(index: _currentIndex, children: pages),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
-  // ============================================================
-  // شريط التنقل السفلي
-  // ============================================================
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: BoxDecoration(
@@ -162,25 +155,15 @@ class _HomeDashboardState extends State<HomeDashboard> {
         elevation: 0,
         selectedItemColor: const Color(0xFF5E35B1),
         unselectedItemColor: const Color(0xFF8A8A9A),
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 11,
-        ),
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
         unselectedLabelStyle: const TextStyle(fontSize: 11),
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+        onTap: (index) => setState(() => _currentIndex = index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.insights),
-            label: 'Insights',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.insights), label: 'Insights'),
           BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'settings'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Settings'),
         ],
       ),
     );
@@ -188,76 +171,120 @@ class _HomeDashboardState extends State<HomeDashboard> {
 }
 
 // ============================================================
-// 📄 _DashboardContent - محتوى الصفحة الرئيسية (التصميم الكامل)
+// 📄 _DashboardContent - يستقبل البيانات من HomeDashboard
 // ============================================================
-class _DashboardContent extends StatefulWidget {
-  const _DashboardContent();
+class _DashboardContent extends StatelessWidget {
+  final Map<String, dynamic>? userData;
+  final Map<String, dynamic>? latestCheckin;
+  final List<Map<String, dynamic>> recentCheckins;
+  final String userName;
+  final String greeting;
+  final bool isGuest;
+  final VoidCallback onRefresh;
 
-  @override
-  State<_DashboardContent> createState() => _DashboardContentState();
-}
+  const _DashboardContent({
+    required this.userData,
+    required this.latestCheckin,
+    required this.recentCheckins,
+    required this.userName,
+    required this.greeting,
+    required this.isGuest,
+    required this.onRefresh,
+  });
 
-class _DashboardContentState extends State<_DashboardContent> {
-  // سيتم ربط البيانات لاحقاً
-  final Map<String, dynamic>? _userData = null;
-  final Map<String, dynamic>? _latestCheckin = null;
-  final List<Map<String, dynamic>> _recentCheckins = [];
-  String _greeting = 'Good Morning';
+  // ============================================================
+  // Helpers
+  // ============================================================
+  bool get _hasCheckin => latestCheckin != null;
+  int get _latestScore => latestCheckin?['cognitive_load_score'] ?? 0;
+  String get _scoreLabel => _getScoreLabel(_latestScore);
+  Color get _scoreColor => _getScoreColor(_latestScore);
 
+  String _getScoreLabel(int score) {
+    if (score <= 2) return 'Low';
+    if (score == 3) return 'Medium';
+    return 'High';
+  }
+
+  Color _getScoreColor(int score) {
+    if (score <= 2) return const Color(0xFF2D6A4F);
+    if (score == 3) return const Color(0xFFF4A261);
+    return const Color(0xFFE76F51);
+  }
+
+  String _getAIProfile() {
+    final count = userData?['total_checkins'] ?? 0;
+    if (count > 5) return 'Intensive AI User';
+    if (count > 2) return 'Regular AI User';
+    return 'Casual AI User';
+  }
+
+  String _getProfileDescription() {
+    final count = userData?['total_checkins'] ?? 0;
+    if (count > 10) return 'You rely heavily on AI tools for complex tasks and decision-making.';
+    if (count > 5) return 'You regularly use AI tools for daily tasks and productivity.';
+    return 'Complete more check-ins to unlock deeper insights about your AI usage.';
+  }
+
+  String _getRecommendation() {
+    if (!_hasCheckin) return 'Start a check-in to get personalized recommendations.';
+    if (_latestScore >= 4) return 'High cognitive load detected. Take a 20-minute break, reduce AI tools to 1-2, and practice deep breathing.';
+    if (_latestScore == 3) return 'Moderate load detected. Consider a 10-minute break and limit AI tools to 2 per session.';
+    return 'You\'re doing great! Keep up your current habits and maintain this balance.';
+  }
+
+  String _formatCheckinDate() {
+    if (!_hasCheckin) return 'No check-in recorded yet';
+    final raw = latestCheckin?['checkin_date'];
+    if (raw == null) return 'Unknown date';
+    try {
+      final date = DateTime.parse(raw.toString());
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final checkinDay = DateTime(date.year, date.month, date.day);
+      final diff = today.difference(checkinDay).inDays;
+      final time = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      if (diff == 0) return 'Today at $time';
+      if (diff == 1) return 'Yesterday at $time';
+      return '${date.day}/${date.month}/${date.year} at $time';
+    } catch (_) {
+      return raw.toString();
+    }
+  }
+
+  // ============================================================
+  // Build
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        physics: const BouncingScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ========== Header ==========
-            _buildHeader('User'),
-
-            const SizedBox(height: 20),
-
-            // ========== Stats Row ==========
-            _buildStatsRow(false, 0, 'No Data', const Color(0xFFB0B0BA)),
-
-            const SizedBox(height: 20),
-
-            // ========== Your AI Profile Card ==========
-            _buildAIProfileCard('User'),
-
-            const SizedBox(height: 16),
-
-            // ========== Daily Check-in Card ==========
-            _buildDailyCheckinCard(false),
-
-            const SizedBox(height: 16),
-
-            // ========== Latest Analysis Card ==========
-            _buildLatestAnalysisCard(
-              false,
-              0,
-              'No Data',
-              const Color(0xFFB0B0BA),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ========== Tomorrow's Outlook Card ==========
-            _buildTomorrowOutlookCard(),
-
-            const SizedBox(height: 16),
-
-            // ========== Today's Recommendation Card ==========
-            _buildRecommendationCard(),
-
-            const SizedBox(height: 24),
-
-            // ========== Recent Activity ==========
-            _buildRecentActivitySection(),
-
-            const SizedBox(height: 80),
-          ],
+      child: RefreshIndicator(
+        onRefresh: () async => onRefresh(),
+        color: const Color(0xFF5E35B1),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(context),
+              const SizedBox(height: 20),
+              _buildStatsRow(),
+              const SizedBox(height: 20),
+              _buildAIProfileCard(context),
+              const SizedBox(height: 16),
+              _buildDailyCheckinCard(context),
+              const SizedBox(height: 16),
+              _buildLatestAnalysisCard(),
+              const SizedBox(height: 16),
+              _buildTomorrowOutlookCard(),
+              const SizedBox(height: 16),
+              _buildRecommendationCard(),
+              const SizedBox(height: 24),
+              _buildRecentActivitySection(),
+              const SizedBox(height: 80),
+            ],
+          ),
         ),
       ),
     );
@@ -266,207 +293,191 @@ class _DashboardContentState extends State<_DashboardContent> {
   // ============================================================
   // Header
   // ============================================================
-Widget _buildHeader(String userName) {
-  return Container(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // ✅ الجزء الأيسر: الترحيب والاسم
-        Expanded(
-          flex: 3,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ✅ الصف الأول: الاسم مع أيقونة التحقق
-              Row(
-                children: [
-                  Text(
-                    '👋',  // ✅ أيقونة ترحيب
-                    style: const TextStyle(
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      userName,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A2E),
-                        letterSpacing: -0.3,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2D6A4F).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: const Color(0xFF2D6A4F).withValues(alpha: 0.15),
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.verified,
-                          color: Color(0xFF2D6A4F),
-                          size: 12,
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Text('👋', style: TextStyle(fontSize: 18)),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        userName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A2E),
+                          letterSpacing: -0.3,
                         ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Verified',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    if (!isGuest)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2D6A4F).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFF2D6A4F).withValues(alpha: 0.15),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.verified, color: Color(0xFF2D6A4F), size: 12),
+                            SizedBox(width: 4),
+                            Text(
+                              'Verified',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF2D6A4F),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF8A8A9A).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Text(
+                          'Guest',
                           style: TextStyle(
                             fontSize: 8,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF2D6A4F),
+                            color: Color(0xFF8A8A9A),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              // ✅ الصف الثاني: الحالة
-              const Text(
-                'How are you feeling today?',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF8A8A9A),
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-        ),
-        
-        // ✅ الجزء الأيمن: الأيقونات
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 🔔 Notifications
-            Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
                       ),
-                    ],
-                  ),
-                  child: IconButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const NotificationsScreen(),
-                        ),
-                      );
-                    },
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 38,
-                      minHeight: 38,
-                    ),
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: Color(0xFF5E35B1),
-                      size: 20,
-                    ),
-                  ),
+                  ],
                 ),
-                Positioned(
-                  right: 3,
-                  top: 3,
-                  child: Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE76F51),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.5),
-                    ),
+                const SizedBox(height: 2),
+                Text(
+                  greeting,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF8A8A9A),
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
               ],
             ),
-            const SizedBox(width: 6),
-            
-            // 👤 Avatar
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ProfileScreen(),
-                  ),
-                );
-              },
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF5E35B1), Color(0xFF7B2CBF)],
-                  ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF5E35B1).withValues(alpha: 0.25),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
                       color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                      icon: const Icon(
+                        Icons.notifications_outlined,
+                        color: Color(0xFF5E35B1),
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 3,
+                    top: 3,
+                    child: Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE76F51),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                ),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF5E35B1), Color(0xFF7B2CBF)],
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF5E35B1).withValues(alpha: 0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  ).animate().fadeIn(duration: 400.ms);
-}
+            ],
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 400.ms);
+  }
 
   // ============================================================
   // Stats Row
   // ============================================================
-  Widget _buildStatsRow(
-    bool hasCheckin,
-    int latestScore,
-    String scoreLabel,
-    Color scoreColor,
-  ) {
+  Widget _buildStatsRow() {
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
             icon: Icons.checklist,
             label: 'Check-ins',
-            value: _userData?['total_checkins']?.toString() ?? '0',
+            value: userData?['total_checkins']?.toString() ?? '0',
             color: const Color(0xFF5E35B1),
           ),
         ),
@@ -475,9 +486,9 @@ Widget _buildHeader(String userName) {
           child: _buildStatCard(
             icon: Icons.speed,
             label: 'Current Load',
-            value: hasCheckin ? latestScore.toString() : '--',
-            suffix: hasCheckin ? '/5' : '',
-            color: hasCheckin ? scoreColor : const Color(0xFFB0B0BA),
+            value: _hasCheckin ? _latestScore.toString() : '--',
+            suffix: _hasCheckin ? '/5' : '',
+            color: _hasCheckin ? _scoreColor : const Color(0xFFB0B0BA),
           ),
         ),
         const SizedBox(width: 12),
@@ -485,8 +496,8 @@ Widget _buildHeader(String userName) {
           child: _buildStatCard(
             icon: Icons.trending_up,
             label: 'Status',
-            value: hasCheckin ? scoreLabel : 'No Data',
-            color: hasCheckin ? scoreColor : const Color(0xFFB0B0BA),
+            value: _hasCheckin ? _scoreLabel : 'No Data',
+            color: _hasCheckin ? _scoreColor : const Color(0xFFB0B0BA),
             isText: true,
           ),
         ),
@@ -545,11 +556,7 @@ Widget _buildHeader(String userName) {
               if (suffix.isNotEmpty)
                 Text(
                   suffix,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
                 ),
             ],
           ),
@@ -561,216 +568,132 @@ Widget _buildHeader(String userName) {
   // ============================================================
   // AI Profile Card
   // ============================================================
-Widget _buildAIProfileCard(String userName) {
-  return Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Colors.white.withValues(alpha: 0.9),
-          const Color(0xFFF8F7FF).withValues(alpha: 0.6),
+  Widget _buildAIProfileCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF5E35B1).withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(
-        color: const Color(0xFF5E35B1).withValues(alpha: 0.08),
-        width: 1,
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.04),
-          blurRadius: 16,
-          offset: const Offset(0, 4),
-        ),
-      ],
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // ✅ الجزء الأيسر: المعلومات
-        Expanded(
-          flex: 2,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ✅ الصف الأول: العنوان + التصنيف
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                alignment: WrapAlignment.start,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  const Text(
-                    'AI Profile',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A1A2E),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          const Color(0xFF5E35B1),
-                          const Color(0xFF7B2CBF),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _getAIProfile(),
-                      style: const TextStyle(
-                        fontSize: 10,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text(
+                      'AI Profile',
+                      style: TextStyle(
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: Color(0xFF1A1A2E),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // ✅ الوصف
-              Text(
-                _getProfileDescription(),
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF6B6B7A),
-                  height: 1.5,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF5E35B1), Color(0xFF7B2CBF)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _getAIProfile(),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 12),
-              // ✅ زر View Profile
-              SizedBox(
-                height: 34,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
+                const SizedBox(height: 8),
+                Text(
+                  _getProfileDescription(),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF6B6B7A),
+                    height: 1.5,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 34,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (context) => const ProfileScreen(),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF5E35B1),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 0,
+                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF5E35B1),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                      visualDensity: VisualDensity.compact,
                     ),
-                    elevation: 0,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  icon: const Icon(
-                    Icons.person_outline,
-                    size: 16,
-                  ),
-                  label: const Text(
-                    'View Profile',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    icon: const Icon(Icons.person_outline, size: 16),
+                    label: const Text('View Profile', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        // ✅ الجزء الأيمن: صورة AI Profile
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFF5E35B1).withValues(alpha: 0.08),
-                const Color(0xFF7B2CBF).withValues(alpha: 0.04),
               ],
             ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: const Color(0xFF5E35B1).withValues(alpha: 0.08),
-            ),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.asset(
-              'assets/images/ai_profile.png',  // ✅ استخدم اسم الصورة الخاصة بك
-              width: 80,
-              height: 80,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                // ✅ في حال عدم وجود الصورة، عرض الأيقونة كبديل
-                return const Icon(
+          const SizedBox(width: 12),
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: const Color(0xFF5E35B1).withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF5E35B1).withValues(alpha: 0.08)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset(
+                'assets/images/ai_profile.png',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(
                   Icons.psychology,
                   size: 40,
                   color: Color(0xFF5E35B1),
-                );
-              },
+                ),
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  ).animate().fadeIn(delay: 150.ms);
-}
-
-String _getAIProfile() {
-  final toolsCount = _userData?['total_checkins'] ?? 0;
-  if (toolsCount > 5) return 'Intensive AI User';
-  if (toolsCount > 2) return 'Regular AI User';
-  return 'Casual AI User';
-}
-
-String _getProfileDescription() {
-  final totalCheckins = _userData?['total_checkins'] ?? 0;
-  if (totalCheckins > 10) {
-    return 'You\'re an intensive AI user. You rely heavily on AI tools for complex tasks and decision-making.';
-  } else if (totalCheckins > 5) {
-    return 'You regularly use AI tools for daily tasks and productivity enhancements.';
-  } else {
-    return 'You occasionally use AI tools. Complete more check-ins to see deeper insights.';
+        ],
+      ),
+    ).animate().fadeIn(delay: 150.ms);
   }
-}
+
   // ============================================================
   // Daily Check-in Card
   // ============================================================
-  Widget _buildDailyCheckinCard(bool hasCheckin) {
+  Widget _buildDailyCheckinCard(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF5E35B1).withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: const Color(0xFF5E35B1).withValues(alpha: 0.15),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF5E35B1).withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: const Color(0xFF5E35B1).withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [
@@ -788,8 +711,8 @@ String _getProfileDescription() {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  hasCheckin
-                      ? 'Complete today\'s reflection to receive an updated cognitive load analysis.'
+                  _hasCheckin
+                      ? 'Complete today\'s reflection for an updated analysis.'
                       : 'Start your first check-in today!',
                   style: TextStyle(
                     fontSize: 12,
@@ -798,33 +721,21 @@ String _getProfileDescription() {
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CheckinScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CheckinScreen()),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5E35B1),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     elevation: 0,
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'Start Daily Check-in',
-                        style: TextStyle(fontSize: 13),
-                      ),
+                      Text('Start Check-in', style: TextStyle(fontSize: 13)),
                       SizedBox(width: 4),
                       Icon(Icons.arrow_forward, size: 16),
                     ],
@@ -840,11 +751,7 @@ String _getProfileDescription() {
               color: const Color(0xFF5E35B1).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(
-              Icons.checklist,
-              color: Color(0xFF5E35B1),
-              size: 32,
-            ),
+            child: const Icon(Icons.checklist, color: Color(0xFF5E35B1), size: 32),
           ),
         ],
       ),
@@ -852,96 +759,158 @@ String _getProfileDescription() {
   }
 
   // ============================================================
-  // Latest Analysis Card
+  // Latest Analysis Card ✅ ديناميكي كامل
   // ============================================================
-  Widget _buildLatestAnalysisCard(
-    bool hasCheckin,
-    int latestScore,
-    String scoreLabel,
-    Color scoreColor,
-  ) {
+  Widget _buildLatestAnalysisCard() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFFFFF9E6),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFFFF3D6)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFD97706).withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Latest Analysis',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFFD97706),
-            ),
+          // العنوان + badge الحالة
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Latest Analysis',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFD97706),
+                ),
+              ),
+              if (_hasCheckin)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _scoreColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: _scoreColor.withValues(alpha: 0.2)),
+                  ),
+                  child: Text(
+                    _scoreLabel,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _scoreColor,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 4),
           const Text(
             'Your most recent cognitive load assessment.',
             style: TextStyle(fontSize: 13, color: Color(0xFF6B6B7A)),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
+
+          // Score + Level
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFFFF3D6)),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Score: ',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF8A8A9A)),
-                    ),
-                    Text(
-                      hasCheckin ? '$latestScore / 5' : '-- / 5',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: hasCheckin
-                            ? scoreColor
-                            : const Color(0xFFB0B0BA),
+                // Score
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Score',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF8A8A9A)),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            _hasCheckin ? _latestScore.toString() : '--',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: _hasCheckin ? _scoreColor : const Color(0xFFB0B0BA),
+                            ),
+                          ),
+                          Text(
+                            ' / 5',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: _hasCheckin ? _scoreColor.withValues(alpha: 0.6) : const Color(0xFFB0B0BA),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                Row(
-                  children: [
-                    const Text(
-                      'Load Level: ',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF8A8A9A)),
+                Container(width: 1, height: 40, color: const Color(0xFFE8E8EE)),
+                // Load Level
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Load Level',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF8A8A9A)),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _hasCheckin ? _scoreLabel : 'No Data',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: _hasCheckin ? _scoreColor : const Color(0xFF8A8A9A),
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      hasCheckin ? scoreLabel : 'No Data',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: hasCheckin
-                            ? scoreColor
-                            : const Color(0xFF8A8A9A),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ],
             ),
           ),
+
+          // Progress bar
+          if (_hasCheckin) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: _latestScore / 5,
+                backgroundColor: const Color(0xFFE8E8EE),
+                color: _scoreColor,
+                minHeight: 6,
+              ),
+            ),
+          ],
+
           const SizedBox(height: 12),
           Row(
             children: [
               const Icon(Icons.access_time, size: 14, color: Color(0xFF8A8A9A)),
               const SizedBox(width: 4),
               Text(
-                hasCheckin
-                    ? 'Completed: Today, 10:30 AM'
-                    : 'No check-in recorded yet',
+                _formatCheckinDate(),
                 style: const TextStyle(fontSize: 12, color: Color(0xFF6B6B7A)),
               ),
             ],
@@ -955,17 +924,12 @@ String _getProfileDescription() {
   // Tomorrow's Outlook Card
   // ============================================================
   Widget _buildTomorrowOutlookCard() {
-    final latestScore = _latestCheckin?['cognitive_load_score'] ?? 0;
-    final predictedOutlook = latestScore >= 4
-        ? 'High'
-        : latestScore == 3
-        ? 'Medium'
-        : 'Low';
+    final predictedOutlook = _latestScore >= 4 ? 'High' : _latestScore == 3 ? 'Medium' : 'Low';
     final outlookColor = predictedOutlook == 'High'
         ? const Color(0xFFEF4444)
         : predictedOutlook == 'Medium'
-        ? const Color(0xFFF4A261)
-        : const Color(0xFF2D6A4F);
+            ? const Color(0xFFF4A261)
+            : const Color(0xFF2D6A4F);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -982,17 +946,10 @@ String _getProfileDescription() {
             children: [
               const Text(
                 'Tomorrow\'s Outlook',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFEF4444),
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFEF4444)),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -1000,11 +957,7 @@ String _getProfileDescription() {
                 ),
                 child: Text(
                   'Predicted: $predictedOutlook',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: outlookColor,
-                  ),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: outlookColor),
                 ),
               ),
             ],
@@ -1014,13 +967,9 @@ String _getProfileDescription() {
             predictedOutlook == 'High'
                 ? '⚠️ You may experience higher mental fatigue tomorrow. Based on your recent AI usage patterns, your cognitive load is expected to increase.'
                 : predictedOutlook == 'Medium'
-                ? 'Your cognitive load is expected to remain moderate. Consider taking breaks to maintain balance.'
-                : 'Great news! Your cognitive load is expected to remain low. Keep up the good habits.',
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF6B6B7A),
-              height: 1.4,
-            ),
+                    ? '🔶 Your cognitive load is expected to remain moderate. Consider taking breaks to maintain balance.'
+                    : '✅ Great news! Your cognitive load is expected to remain low. Keep up the good habits.',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF6B6B7A), height: 1.4),
           ),
         ],
       ),
@@ -1031,9 +980,6 @@ String _getProfileDescription() {
   // Recommendation Card
   // ============================================================
   Widget _buildRecommendationCard() {
-    final hasCheckin = _latestCheckin != null;
-    final recommendation = _getRecommendation();
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1043,9 +989,7 @@ String _getProfileDescription() {
           colors: [Color(0xFFF0FDF4), Color(0xFFE6F9ED)],
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: const Color(0xFF15803D).withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: const Color(0xFF15803D).withValues(alpha: 0.15)),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF15803D).withValues(alpha: 0.05),
@@ -1061,69 +1005,47 @@ String _getProfileDescription() {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                const Row(
                   children: [
-                    const Icon(
-                      Icons.lightbulb,
-                      color: Color(0xFF15803D),
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Today\'s Recommendation',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF15803D),
+                    Icon(Icons.lightbulb, color: Color(0xFF15803D), size: 20),
+                    SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Today\'s Recommendation',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF15803D),
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  hasCheckin
-                      ? recommendation
-                      : 'Start a check-in to get personalized recommendations.',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF2C2C3A),
-                    height: 1.5,
-                  ),
+                  _getRecommendation(),
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF2C2C3A), height: 1.5),
                 ),
               ],
             ),
           ),
           Container(
-            width: 60,
-            height: 60,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
               color: const Color(0xFF15803D).withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(
-              Icons.emoji_objects,
-              color: Color(0xFF15803D),
-              size: 32,
-            ),
+            child: const Icon(Icons.emoji_objects, color: Color(0xFF15803D), size: 28),
           ),
         ],
       ),
     ).animate().fadeIn(delay: 350.ms);
   }
 
-  String _getRecommendation() {
-    final latestScore = _latestCheckin?['cognitive_load_score'] ?? 0;
-    if (latestScore >= 4) {
-      return 'High cognitive load detected. Take a 20-minute break, reduce AI tools to 1-2, and practice deep breathing.';
-    } else if (latestScore == 3) {
-      return 'Moderate cognitive load detected. Consider taking a 10-minute break and reducing AI tools to 2 per session.';
-    } else {
-      return 'You\'re doing great! Keep up your current habits. Try to maintain this balance.';
-    }
-  }
-
   // ============================================================
-  // Recent Activity Section
+  // Recent Activity
   // ============================================================
   Widget _buildRecentActivitySection() {
     return Column(
@@ -1131,11 +1053,7 @@ String _getProfileDescription() {
       children: [
         const Text(
           'Recent Activity',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A2E),
-          ),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A2E)),
         ).animate().fadeIn(delay: 400.ms),
         const SizedBox(height: 12),
         _buildRecentActivity(),
@@ -1144,9 +1062,9 @@ String _getProfileDescription() {
   }
 
   Widget _buildRecentActivity() {
-    if (_recentCheckins.isEmpty) {
+    if (recentCheckins.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -1157,14 +1075,9 @@ String _getProfileDescription() {
             children: [
               Icon(Icons.inbox, size: 48, color: Color(0xFFD1D1D8)),
               SizedBox(height: 8),
-              Text(
-                'No check-ins yet',
-                style: TextStyle(fontSize: 14, color: Color(0xFF8A8A9A)),
-              ),
-              Text(
-                'Start your first check-in today!',
-                style: TextStyle(fontSize: 12, color: Color(0xFFB0B0BA)),
-              ),
+              Text('No check-ins yet', style: TextStyle(fontSize: 14, color: Color(0xFF8A8A9A))),
+              SizedBox(height: 4),
+              Text('Start your first check-in today!', style: TextStyle(fontSize: 12, color: Color(0xFFB0B0BA))),
             ],
           ),
         ),
@@ -1172,13 +1085,21 @@ String _getProfileDescription() {
     }
 
     return Column(
-      children: _recentCheckins.asMap().entries.map((entry) {
+      children: recentCheckins.asMap().entries.map((entry) {
         final index = entry.key;
         final checkin = entry.value;
         final score = checkin['cognitive_load_score'] ?? 0;
-        final date = DateTime.parse(checkin['checkin_date']);
         final scoreLabel = _getScoreLabel(score);
         final scoreColor = _getScoreColor(score);
+
+        String dateStr = '';
+        try {
+          final raw = checkin['checkin_date'];
+          if (raw != null) {
+            final date = DateTime.parse(raw.toString());
+            dateStr = '${date.day}/${date.month}/${date.year}';
+          }
+        } catch (_) {}
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -1191,17 +1112,20 @@ String _getProfileDescription() {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: scoreColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  scoreLabel,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: scoreColor,
+                child: Center(
+                  child: Text(
+                    score.toString(),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: scoreColor,
+                    ),
                   ),
                 ),
               ),
@@ -1211,20 +1135,18 @@ String _getProfileDescription() {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '$scoreLabel - $score/5',
+                      '$scoreLabel Load — $score/5',
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF1A1A2E),
                       ),
                     ),
-                    Text(
-                      '${date.day}/${date.month}/${date.year}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF8A8A9A),
+                    if (dateStr.isNotEmpty)
+                      Text(
+                        dateStr,
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF8A8A9A)),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -1232,26 +1154,15 @@ String _getProfileDescription() {
                 score <= 2
                     ? Icons.check_circle
                     : score == 3
-                    ? Icons.info_outline
-                    : Icons.warning_amber_rounded,
+                        ? Icons.info_outline
+                        : Icons.warning_amber_rounded,
                 color: scoreColor,
+                size: 22,
               ),
             ],
           ),
         ).animate().fadeIn(delay: (450 + (index + 1) * 50).ms);
       }).toList(),
     );
-  }
-
-  String _getScoreLabel(int score) {
-    if (score <= 2) return 'Low';
-    if (score == 3) return 'Medium';
-    return 'High';
-  }
-
-  Color _getScoreColor(int score) {
-    if (score <= 2) return const Color(0xFF2D6A4F);
-    if (score == 3) return const Color(0xFFF4A261);
-    return const Color(0xFFE76F51);
   }
 }
