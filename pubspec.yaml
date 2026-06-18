@@ -1,0 +1,112 @@
+name: mental_load
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Supabase
+  supabase_flutter: ^2.6.0
+  
+  # Font Awesome
+  font_awesome_flutter: ^10.6.0
+  
+  # Local Storage
+  flutter_secure_storage: ^9.0.0
+  
+  # UI / Design
+  flutter_animate: ^4.0.0
+  glassmorphism: ^3.0.0
+  shimmer: ^3.0.0
+
+  # Charts
+  fl_chart: ^1.2.0
+
+  # Audio / Voice
+  record: ^5.0.4
+  audio_waveforms: ^1.0.4
+  audioplayers: ^6.0.0
+
+  # HTTP & APIs
+  http: ^1.2.0
+
+  # Local Storage
+  shared_preferences: ^2.2.2
+
+  # Utilities
+  intl: ^0.19.0
+  path_provider: ^2.1.2
+  share_plus: ^9.0.0
+  image_picker: ^1.0.7
+
+  # State Management
+  provider: ^6.1.1
+
+  cupertino_icons: ^1.0.8
+  google_fonts: ^8.1.0
+
+  url_launcher: ^6.3.0
+  permission_handler: ^11.3.0
+
+  internet_connection_checker: ^1.0.0+1
+
+
+
+
+dependency_overrides:
+  record_platform_interface: ^1.5.0
+  record_linux: ^0.7.1
+  
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/icons/
+    - assets/images/
+    - assets/images/recommendation_icon.png
+    - assets/images/Vector.png
+    - assets/images/focus_icon.png
+    - assets/images/Frame.png
+    - assets/images/ai_profile.png
+    - assets/images/your_image_name.png
+    - assets/images/factor1_icon.png
+    - assets/images/factor2_icon.png
+    - assets/images/33.png
+    - assets/images/factor4_icon.png
+
+    
+
+
+
+  # ✅ أضف هذا القسم للخطوط
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/LOGO.jpg"
+  adaptive_icon_background: "#1A5F7A"
+  # adaptive_icon_foreground: "assets/icons/logo.jpeg"
+  adaptive_icon_foreground: "assets/icons/LOGO.jpg"
