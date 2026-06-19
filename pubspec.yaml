@@ -15,7 +15,7 @@ dependencies:
   supabase_flutter: ^2.6.0
   
   # Font Awesome
-  font_awesome_flutter: ^10.6.0
+  font_awesome_flutter: ^11.0.0
   
   # Local Storage
   flutter_secure_storage: ^9.0.0
@@ -31,16 +31,21 @@ dependencies:
   # Audio / Voice
   record: ^5.0.4
   audio_waveforms: ^1.0.4
+
+  # ✅ تشغيل الصوت
+
   audioplayers: ^6.0.0
 
   # HTTP & APIs
   http: ^1.2.0
 
   # Local Storage
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.5.5
 
   # Utilities
   intl: ^0.19.0
+
+  # ✅ تخزين الملفات
   path_provider: ^2.1.2
   share_plus: ^9.0.0
   image_picker: ^1.0.7
@@ -49,13 +54,23 @@ dependencies:
   provider: ^6.1.1
 
   cupertino_icons: ^1.0.8
-  google_fonts: ^8.1.0
+  google_fonts: ^6.2.0
 
   url_launcher: ^6.3.0
+  
+# ✅ أذونات الميكروفون
   permission_handler: ^11.3.0
 
-  internet_connection_checker: ^1.0.0+1
+  connectivity_plus: ^6.0.0
 
+  flutter_dotenv: ^6.0.1
+
+  googleapis_auth: ^1.5.0
+  googleapis: ^13.0.0
+
+  google_sign_in: ^6.2.0
+
+  # font_awesome_flutter: ^10.7.0
 
 
 
@@ -73,6 +88,8 @@ flutter:
   uses-material-design: true
 
   assets:
+    - .env  
+    - assets/google_credentials.json
     - assets/icons/
     - assets/images/
     - assets/images/recommendation_icon.png
@@ -91,22 +108,40 @@ flutter:
 
 
   # ✅ أضف هذا القسم للخطوط
+  # fonts:
+  #   - family: Inter
+  #     fonts:
+  #       - asset: assets/fonts/Inter-Regular.ttf
+  #         weight: 400
+  #       - asset: assets/fonts/Inter-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/Inter-SemiBold.ttf
+  #         weight: 600
+  #       - asset: assets/fonts/Inter-Bold.ttf
+  #         weight: 700
+
   fonts:
-    - family: Inter
+    - family: Manrope
       fonts:
-        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Manrope-Regular.ttf
           weight: 400
-        - asset: assets/fonts/Inter-Medium.ttf
+        - asset: assets/fonts/Manrope-Medium.ttf
           weight: 500
-        - asset: assets/fonts/Inter-SemiBold.ttf
+        - asset: assets/fonts/Manrope-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/Inter-Bold.ttf
+        - asset: assets/fonts/Manrope-Bold.ttf
           weight: 700
+        - asset: assets/fonts/Manrope-ExtraBold.ttf
+          weight: 800
+
+          
 
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icons/LOGO.jpg"
+  # image_path: "assets/icons/LOGO.jpg"
+  image_path: "assets/icons/logo3.jpeg"
   adaptive_icon_background: "#1A5F7A"
   # adaptive_icon_foreground: "assets/icons/logo.jpeg"
-  adaptive_icon_foreground: "assets/icons/LOGO.jpg"
+  # adaptive_icon_foreground: "assets/icons/LOGO.jpg" 
+  adaptive_icon_foreground: "assets/icons/logo3.jpeg"
