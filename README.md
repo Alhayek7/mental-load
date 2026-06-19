@@ -1,6 +1,6 @@
 
 <div align="center">
-  <img src="assets/icons/logo.jpeg" alt="Mental Load Logo" width="120"/>
+  <img src="assets/icons/logo.png" alt="Mental Load Logo" width="120"/>
   <h1>🧠 Mental Load</h1>
   <p><strong>Understand Your Mental Load</strong></p>
   <p>AI-Powered Daily Check-in Assistant for Cognitive Overload Detection</p>
