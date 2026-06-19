@@ -8,7 +8,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:internet_connection_checker/internet_connection_checker.dart';
+// import 'package:internet_connection_checker/internet_connection_checker.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+
 import '../widgets/contact_us_dialog.dart';
 import '../services/supabase_service.dart';
 import 'login_screen.dart';
@@ -41,54 +43,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ============================================================
   // Load
   // ============================================================
-  Future<void> _loadAll() async {
-    if (mounted) setState(() => _isLoading = true);
+Future<void> _loadAll() async {
+  if (mounted) setState(() => _isLoading = true);
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _isGuest = prefs.getBool('isGuest') ?? false;
-      _isOnline = await InternetConnectionChecker().hasConnection;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    _isGuest = prefs.getBool('isGuest') ?? false;
+    
+    // ✅ استخدام الدالة الجديدة
+    _isOnline = await _checkConnectivity();
 
+    if (_isGuest) {
+      _userName = 'Guest';
+      _userEmail = 'guest@mentalload.app';
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
 
-      if (_isGuest) {
-        _userName = 'Guest';
-        _userEmail = 'guest@mentalload.app';
-        if (mounted) setState(() => _isLoading = false);
-        return;
-      }
+    // جلب الاسم من SharedPreferences كـ fallback
+    final stored = prefs.getString('loggedInUser') ?? '';
+    if (stored.isNotEmpty) {
+      _userEmail = stored;
+      _userName = stored.split('@')[0];
+    }
 
-      // جلب الاسم من SharedPreferences كـ fallback
-      final stored = prefs.getString('loggedInUser') ?? '';
-      if (stored.isNotEmpty) {
-        _userEmail = stored;
-        _userName = stored.split('@')[0];
-      }
-
-      // جلب البيانات من Supabase
-      if (_isOnline) {
-        final user = _supabaseService.currentUser;
-        if (user != null) {
-          final data = await _supabaseService
-              .getUserData(user.id)
-              .timeout(const Duration(seconds: 5));
-          if (data != null) {
-            _userData = data;
-            if (data['full_name'] != null && data['full_name'].toString().isNotEmpty) {
-              _userName = data['full_name'];
-            }
-            if (data['email'] != null && data['email'].toString().isNotEmpty) {
-              _userEmail = data['email'];
-            }
+    // جلب البيانات من Supabase
+    if (_isOnline) {
+      final user = _supabaseService.currentUser;
+      if (user != null) {
+        final data = await _supabaseService
+            .getUserData(user.id)
+            .timeout(const Duration(seconds: 5));
+        if (data != null) {
+          _userData = data;
+          if (data['full_name'] != null && data['full_name'].toString().isNotEmpty) {
+            _userName = data['full_name'];
+          }
+          if (data['email'] != null && data['email'].toString().isNotEmpty) {
+            _userEmail = data['email'];
           }
         }
       }
-    } catch (e) {
-      debugPrint('Profile load error: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
+  } catch (e) {
+    debugPrint('Profile load error: $e');
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
+}
 
+// ============================================================
+// Check Connectivity (بديل عن internet_connection_checker)
+// ============================================================
+Future<bool> _checkConnectivity() async {
+  try {
+    final result = await Connectivity().checkConnectivity();
+    return result != ConnectivityResult.none;
+  } catch (e) {
+    debugPrint('⚠️ Connectivity check failed: $e');
+    return false;
+  }
+}
   // ============================================================
   // Microphone Permission
   // ============================================================

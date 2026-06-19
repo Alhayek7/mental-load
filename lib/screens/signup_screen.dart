@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'privacy_consent_screen.dart';
 import 'terms_screen.dart';
 import '../services/supabase_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -18,7 +19,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  
+
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _agreeTerms = false;
@@ -41,93 +42,106 @@ class _SignupScreenState extends State<SignupScreen> {
     return emailRegex.hasMatch(email);
   }
 
-Future<void> _signUp() async {
-  final fullName = _fullNameController.text.trim();
-  final email = _emailController.text.trim();
-  final password = _passwordController.text.trim();
-  final confirmPassword = _confirmPasswordController.text.trim();
+  Future<void> _signUp() async {
+    final fullName = _fullNameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
 
-  if (fullName.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+    if (fullName.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please fill in all fields';
+      });
+      return;
+    }
+
+    if (!_isValidEmail(email)) {
+      setState(() {
+        _errorMessage = 'Please enter a valid email address';
+      });
+      return;
+    }
+
+    if (password != confirmPassword) {
+      setState(() {
+        _errorMessage = 'Passwords do not match';
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      setState(() {
+        _errorMessage = 'Password must be at least 6 characters';
+      });
+      return;
+    }
+
+    if (!_agreeTerms) {
+      setState(() {
+        _errorMessage = 'You must agree to the Terms & Conditions';
+      });
+      return;
+    }
+
     setState(() {
-      _errorMessage = 'Please fill in all fields';
+      _isLoading = true;
+      _errorMessage = '';
     });
-    return;
-  }
 
-  if (!_isValidEmail(email)) {
-    setState(() {
-      _errorMessage = 'Please enter a valid email address';
-    });
-    return;
-  }
+    try {
+      debugPrint('📧 Attempting sign up for: $email');
 
-  if (password != confirmPassword) {
-    setState(() {
-      _errorMessage = 'Passwords do not match';
-    });
-    return;
-  }
-
-  if (password.length < 6) {
-    setState(() {
-      _errorMessage = 'Password must be at least 6 characters';
-    });
-    return;
-  }
-
-  if (!_agreeTerms) {
-    setState(() {
-      _errorMessage = 'You must agree to the Terms & Conditions';
-    });
-    return;
-  }
-
-  setState(() {
-    _isLoading = true;
-    _errorMessage = '';
-  });
-
-  try {
-    debugPrint('📧 Attempting sign up for: $email');
-    
-    final response = await _supabaseService.signUp(
-      email: email,
-      password: password,
-      fullName: fullName,
-    );
-
-    debugPrint('✅ Sign up response: ${response.user?.id}');
-
-    if (response.user != null) {
-      await _supabaseService.saveUserData(
-        userId: response.user!.id,
+      final response = await _supabaseService.signUp(
         email: email,
+        password: password,
         fullName: fullName,
       );
 
-      debugPrint('✅ User data saved successfully');
+      debugPrint('✅ Sign up response: ${response.user?.id}');
 
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const PrivacyConsentScreen()),
+      if (response.user != null) {
+        await _supabaseService.saveUserData(
+          userId: response.user!.id,
+          email: email,
+          fullName: fullName,
         );
+
+        debugPrint('✅ User data saved successfully');
+
+        // ✅ ✅ ✅ أضف هذا الكود ✅ ✅ ✅
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('loggedInUser', email);
+        await prefs.setBool('hasSeenOnboarding', true); // ✅ تخطي Onboarding
+
+        debugPrint('✅ isLoggedIn saved successfully');
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PrivacyConsentScreen(),
+            ),
+          );
+        }
       }
+    } on AuthException catch (e) {
+      debugPrint('🔥 AuthException: ${e.message}');
+      setState(() {
+        _errorMessage = _getAuthErrorMessage(e.message);
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('🔥 Error: $e');
+      setState(() {
+        _errorMessage = 'An error occurred. Please try again.';
+        _isLoading = false;
+      });
     }
-  } on AuthException catch (e) {
-    debugPrint('🔥 AuthException: ${e.message}');
-    setState(() {
-      _errorMessage = _getAuthErrorMessage(e.message);
-      _isLoading = false;
-    });
-  } catch (e) {
-    debugPrint('🔥 Error: $e');
-    setState(() {
-      _errorMessage = 'An error occurred. Please try again.';
-      _isLoading = false;
-    });
   }
-}
 
   String _getAuthErrorMessage(String message) {
     if (message.contains('already registered')) {
@@ -150,7 +164,10 @@ Future<void> _signUp() async {
       _isLoading = false;
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Google Sign Up coming soon!'), backgroundColor: Color(0xFF5E35B1)),
+      const SnackBar(
+        content: Text('Google Sign Up coming soon!'),
+        backgroundColor: Color(0xFF5E35B1),
+      ),
     );
   }
 
@@ -164,7 +181,10 @@ Future<void> _signUp() async {
       _isLoading = false;
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Facebook Sign Up coming soon!'), backgroundColor: Color(0xFF5E35B1)),
+      const SnackBar(
+        content: Text('Facebook Sign Up coming soon!'),
+        backgroundColor: Color(0xFF5E35B1),
+      ),
     );
   }
 
@@ -196,7 +216,7 @@ Future<void> _signUp() async {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
-              
+
               // ========== العنوان ==========
               const Text(
                 'Sign up',
@@ -209,14 +229,11 @@ Future<void> _signUp() async {
               const SizedBox(height: 8),
               const Text(
                 'Create your Account...',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF6B6B7A),
-                ),
+                style: TextStyle(fontSize: 14, color: Color(0xFF6B6B7A)),
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // ========== Sign Up Via ==========
               const Text(
                 'Sign Up Via',
@@ -227,7 +244,7 @@ Future<void> _signUp() async {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // ========== 3 أزرار ==========
               Row(
                 children: [
@@ -253,46 +270,83 @@ Future<void> _signUp() async {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // ========== OR Divider ==========
               Row(
                 children: [
-                  Expanded(child: Divider(color: const Color(0xFFD1D1D8), thickness: 1)),
+                  Expanded(
+                    child: Divider(
+                      color: const Color(0xFFD1D1D8),
+                      thickness: 1,
+                    ),
+                  ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text('or', style: TextStyle(color: const Color(0xFF8A8A9A), fontSize: 14)),
+                    child: Text(
+                      'or',
+                      style: TextStyle(
+                        color: const Color(0xFF8A8A9A),
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
-                  Expanded(child: Divider(color: const Color(0xFFD1D1D8), thickness: 1)),
+                  Expanded(
+                    child: Divider(
+                      color: const Color(0xFFD1D1D8),
+                      thickness: 1,
+                    ),
+                  ),
                 ],
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // ========== رسالة الخطأ ==========
               if (_errorMessage.isNotEmpty)
                 Container(
                   margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFE76F51).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE76F51).withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: const Color(0xFFE76F51).withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline, color: Color(0xFFE76F51), size: 18),
+                      const Icon(
+                        Icons.error_outline,
+                        color: Color(0xFFE76F51),
+                        size: 18,
+                      ),
                       const SizedBox(width: 10),
-                      Expanded(child: Text(_errorMessage, style: const TextStyle(color: Color(0xFFE76F51), fontSize: 13))),
+                      Expanded(
+                        child: Text(
+                          _errorMessage,
+                          style: const TextStyle(
+                            color: Color(0xFFE76F51),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              
+
               // ========== Full Name ==========
               const Text(
                 'Full Name',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF1A1A2E)),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF1A1A2E),
+                ),
               ),
               const SizedBox(height: 8),
               Container(
@@ -305,19 +359,26 @@ Future<void> _signUp() async {
                   controller: _fullNameController,
                   decoration: const InputDecoration(
                     hintText: 'Ahmed Mohammed',
-                    prefixIcon: Icon(Icons.person_outline, color: Color(0xFF8A8A9A)),
+                    prefixIcon: Icon(
+                      Icons.person_outline,
+                      color: Color(0xFF8A8A9A),
+                    ),
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.all(16),
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // ========== Email ==========
               const Text(
                 'Email',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF1A1A2E)),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF1A1A2E),
+                ),
               ),
               const SizedBox(height: 8),
               Container(
@@ -331,19 +392,26 @@ Future<void> _signUp() async {
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
                     hintText: 'ahmed@example.com',
-                    prefixIcon: Icon(Icons.email_outlined, color: Color(0xFF8A8A9A)),
+                    prefixIcon: Icon(
+                      Icons.email_outlined,
+                      color: Color(0xFF8A8A9A),
+                    ),
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.all(16),
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // ========== Password ==========
               const Text(
                 'Password',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF1A1A2E)),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF1A1A2E),
+                ),
               ),
               const SizedBox(height: 8),
               Container(
@@ -357,23 +425,37 @@ Future<void> _signUp() async {
                   obscureText: !_isPasswordVisible,
                   decoration: InputDecoration(
                     hintText: '••••••••',
-                    prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF8A8A9A)),
+                    prefixIcon: const Icon(
+                      Icons.lock_outline,
+                      color: Color(0xFF8A8A9A),
+                    ),
                     suffixIcon: IconButton(
-                      icon: Icon(_isPasswordVisible ? Icons.visibility_off : Icons.visibility, color: const Color(0xFF8A8A9A)),
-                      onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                      icon: Icon(
+                        _isPasswordVisible
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: const Color(0xFF8A8A9A),
+                      ),
+                      onPressed: () => setState(
+                        () => _isPasswordVisible = !_isPasswordVisible,
+                      ),
                     ),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.all(16),
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // ========== Confirm Password ==========
               const Text(
                 'Confirm Password',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF1A1A2E)),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF1A1A2E),
+                ),
               ),
               const SizedBox(height: 8),
               Container(
@@ -387,19 +469,30 @@ Future<void> _signUp() async {
                   obscureText: !_isConfirmPasswordVisible,
                   decoration: InputDecoration(
                     hintText: '••••••••',
-                    prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF8A8A9A)),
+                    prefixIcon: const Icon(
+                      Icons.lock_outline,
+                      color: Color(0xFF8A8A9A),
+                    ),
                     suffixIcon: IconButton(
-                      icon: Icon(_isConfirmPasswordVisible ? Icons.visibility_off : Icons.visibility, color: const Color(0xFF8A8A9A)),
-                      onPressed: () => setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
+                      icon: Icon(
+                        _isConfirmPasswordVisible
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: const Color(0xFF8A8A9A),
+                      ),
+                      onPressed: () => setState(
+                        () => _isConfirmPasswordVisible =
+                            !_isConfirmPasswordVisible,
+                      ),
                     ),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.all(16),
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // ========== Terms & Conditions Section (مع زر عرض الشروط) ==========
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -408,12 +501,16 @@ Future<void> _signUp() async {
                     children: [
                       Checkbox(
                         value: _agreeTerms,
-                        onChanged: (value) => setState(() => _agreeTerms = value ?? false),
+                        onChanged: (value) =>
+                            setState(() => _agreeTerms = value ?? false),
                         activeColor: const Color(0xFF5235C5),
                       ),
                       const Text(
                         'I Agree the Conditions & Terms',
-                        style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF1A1A2E),
+                        ),
                       ),
                     ],
                   ),
@@ -422,7 +519,9 @@ Future<void> _signUp() async {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const TermsScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const TermsScreen(),
+                        ),
                       );
                     },
                     child: const Padding(
@@ -439,9 +538,9 @@ Future<void> _signUp() async {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // ========== Sign Up Button ==========
               SizedBox(
                 width: double.infinity,
@@ -451,14 +550,29 @@ Future<void> _signUp() async {
                     backgroundColor: const Color(0xFF5235C5),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: _isLoading
-                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                      : const Text('Sign up', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Sign up',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
-              
+
               const SizedBox(height: 20),
             ],
           ),
@@ -487,7 +601,14 @@ Future<void> _signUp() async {
             children: [
               Icon(icon, color: color, size: 26),
               const SizedBox(height: 4),
-              Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: color,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),

@@ -2061,10 +2061,10 @@
 //   }
 // }
 
-
 // ============================================================
 // 📄 lib/screens/insights_screen.dart
-// 📌 صفحة الرؤى والتحليلات - Insights Screen (ديناميكية)
+// 📌 صفحة الرؤى والتحليلات - Insights Screen
+// ✅ النسخة الاحترافية النهائية - ديناميكية بالكامل
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -2086,12 +2086,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
   // متغيرات الحالة
   // ============================================================
   bool _isLoading = true;
+  bool _isRefreshing = false;
   String? _errorMessage;
   Map<String, dynamic>? _userData;
   List<Map<String, dynamic>> _checkins = [];
 
   // ============================================================
-  // بيانات ديناميكية
+  // بيانات Patterns
   // ============================================================
   List<FlSpot> _chartData = [];
   List<String> _weekDays = [];
@@ -2113,7 +2114,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   final List<String> _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   String _selectedPeriod = 'Week';
   Map<String, double> _categoryDistribution = {'Low': 0, 'Medium': 0, 'High': 0};
-  Map<String, double> _toolsImpact = {'1-2 Tools': 0, '3-4 Tools': 0, '5+ Tools': 0};
+  Map<String, double> _toolsImpact = {};
   List<Map<String, dynamic>> _insights = [];
 
   // ============================================================
@@ -2125,10 +2126,19 @@ class _InsightsScreenState extends State<InsightsScreen> {
     _loadData();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ✅ إعادة تحميل البيانات عند العودة للصفحة
+    _loadData();
+  }
+
   // ============================================================
   // جلب البيانات من Supabase
   // ============================================================
   Future<void> _loadData() async {
+    if (_isRefreshing) return;
+    
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -2154,13 +2164,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
           .eq('user_id', user.id)
           .order('checkin_date', ascending: true);
 
-      _checkins = response;
+      _checkins = response.cast<Map<String, dynamic>>();
       
       // معالجة وتحليل البيانات
       _processData();
       
       setState(() {
         _isLoading = false;
+        _isRefreshing = false;
       });
 
     } catch (e) {
@@ -2168,6 +2179,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
       setState(() {
         _errorMessage = 'Failed to load insights. Please try again.';
         _isLoading = false;
+        _isRefreshing = false;
       });
     }
   }
@@ -2183,31 +2195,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
       return;
     }
 
-    // 1. حساب الإحصائيات
     _calculateStats();
-
-    // 2. توليد بيانات الرسم البياني
     _generateChartData();
-
-    // 3. تحديد ملف المستخدم
     _generateProfile();
-
-    // 4. توليد الأنماط الشخصية
     _generatePatterns();
-
-    // 5. توليد التوقعات
     _generateForecast();
-
-    // 6. توليد رؤى الذكاء الاصطناعي
     _generateAIInsight();
-
-    // 7. تحليل التوزيع
     _calculateCategoryDistribution();
-
-    // 8. تحليل تأثير الأدوات
     _calculateToolsImpact();
-
-    // 9. توليد الرؤى
     _generateInsights();
   }
 
@@ -2228,7 +2223,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
     _weeklyData = [];
     _monthlyData = [];
     _categoryDistribution = {'Low': 0, 'Medium': 0, 'High': 0};
-    _toolsImpact = {'1-2 Tools': 0, '3-4 Tools': 0, '5+ Tools': 0};
+    _toolsImpact = {};
     _insights = [];
   }
 
@@ -2254,7 +2249,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
     _weekDays = [];
     
     final now = DateTime.now();
-    final data = _selectedPeriod == 'Week' ? _checkins : _checkins;
     final days = _selectedPeriod == 'Week' ? 7 : 30;
 
     for (int i = days - 1; i >= 0; i--) {
@@ -2262,7 +2256,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
       final dateStr = date.toIso8601String().split('T')[0];
       
       final checkin = _checkins.firstWhere(
-        (item) => item['checkin_date'] == dateStr,
+        (item) => item['checkin_date']?.toString().startsWith(dateStr) ?? false,
         orElse: () => {'cognitive_load_score': 0},
       );
       
@@ -2360,7 +2354,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
     _forecastData = [];
 
     if (_checkins.length < 3) {
-      _forecastData = [];
       return;
     }
 
@@ -2386,7 +2379,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
       
       _forecastData.add({
         'day': i == 1 ? 'Tomorrow' : 'Day $i',
-        'date': now.add(Duration(days: i)).toIso8601String().split('T')[0],
+        'date': '${now.add(Duration(days: i)).day}/${now.add(Duration(days: i)).month}/${now.add(Duration(days: i)).year}',
         'score': predictedScore,
         'level': level,
         'color': color,
@@ -2412,7 +2405,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
       _aiInsight = '🚨 High cognitive load detected. Take immediate action: 20-minute break, reduce AI tools to 1-2.';
     }
 
-    // إضافة توصية إضافية
     if (_checkins.length >= 5) {
       final lastAvg = _checkins.reversed.take(3).fold(0.0, (sum, item) => sum + (item['cognitive_load_score'] ?? 0)) / 3;
       if (lastAvg > avgScore) {
@@ -2442,37 +2434,53 @@ class _InsightsScreenState extends State<InsightsScreen> {
   }
 
   void _calculateToolsImpact() {
-    // محاكاة تأثير الأدوات (سيتم ربطها بالبيانات الحقيقية لاحقاً)
+    _toolsImpact = {};
+    
     if (_checkins.isEmpty) {
       _toolsImpact = {'1-2 Tools': 0, '3-4 Tools': 0, '5+ Tools': 0};
       return;
     }
 
     // تحليل تأثير عدد الأدوات على Score
-    Map<int, List<double>> toolsScores = {};
+    Map<String, List<double>> toolsScores = {
+      '1-2 Tools': [],
+      '3-4 Tools': [],
+      '5+ Tools': [],
+    };
     
     for (var item in _checkins) {
       final tools = item['ai_tools_count'] ?? 0;
       final score = (item['cognitive_load_score'] ?? 0) * 2.0;
       
-      toolsScores.putIfAbsent(tools, () => []);
-      toolsScores[tools]!.add(score);
+      if (tools <= 2) {
+        toolsScores['1-2 Tools']!.add(score);
+      } else if (tools <= 4) {
+        toolsScores['3-4 Tools']!.add(score);
+      } else {
+        toolsScores['5+ Tools']!.add(score);
+      }
     }
 
     // حساب متوسط Scores لكل مجموعة
-    List<double> avgByTools = [];
+    Map<String, double> avgScores = {};
     for (var entry in toolsScores.entries) {
-      final avg = entry.value.reduce((a, b) => a + b) / entry.value.length;
-      avgByTools.add(avg);
+      if (entry.value.isNotEmpty) {
+        avgScores[entry.key] = entry.value.reduce((a, b) => a + b) / entry.value.length;
+      } else {
+        avgScores[entry.key] = 0;
+      }
     }
 
-    if (avgByTools.isNotEmpty) {
-      final total = avgByTools.reduce((a, b) => a + b);
+    // حساب النسب المئوية
+    final total = avgScores.values.reduce((a, b) => a + b);
+    if (total > 0) {
       _toolsImpact = {
-        '1-2 Tools': avgByTools.length >= 1 ? (avgByTools[0] / total) * 100 : 0,
-        '3-4 Tools': avgByTools.length >= 2 ? (avgByTools[1] / total) * 100 : 0,
-        '5+ Tools': avgByTools.length >= 3 ? (avgByTools[2] / total) * 100 : 0,
+        '1-2 Tools': (avgScores['1-2 Tools']! / total) * 100,
+        '3-4 Tools': (avgScores['3-4 Tools']! / total) * 100,
+        '5+ Tools': (avgScores['5+ Tools']! / total) * 100,
       };
+    } else {
+      _toolsImpact = {'1-2 Tools': 0, '3-4 Tools': 0, '5+ Tools': 0};
     }
   }
 
@@ -2488,17 +2496,20 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
     // رؤية 1: التحسن
     if (_checkins.length >= 5) {
-      final firstAvg = _checkins.take(_checkins.length ~/ 2).fold(0.0, (sum, item) => sum + (item['cognitive_load_score'] ?? 0)) / (_checkins.length ~/ 2);
-      final lastAvg = _checkins.skip(_checkins.length ~/ 2).fold(0.0, (sum, item) => sum + (item['cognitive_load_score'] ?? 0)) / (_checkins.length - (_checkins.length ~/ 2));
+      final firstHalf = _checkins.take(_checkins.length ~/ 2).toList();
+      final secondHalf = _checkins.skip(_checkins.length ~/ 2).toList();
       
-      if (lastAvg < firstAvg) {
+      final firstAvg = firstHalf.fold(0.0, (sum, item) => sum + (item['cognitive_load_score'] ?? 0)) / firstHalf.length;
+      final lastAvg = secondHalf.fold(0.0, (sum, item) => sum + (item['cognitive_load_score'] ?? 0)) / secondHalf.length;
+      
+      if (lastAvg < firstAvg && firstAvg > 0) {
         _insights.add({
           'icon': Icons.trending_down,
           'color': const Color(0xFF2D6A4F),
           'title': '📉 Improving Trend',
           'description': 'Your cognitive load has decreased by ${((firstAvg - lastAvg) / firstAvg * 100).toStringAsFixed(0)}% over time.',
         });
-      } else if (lastAvg > firstAvg) {
+      } else if (lastAvg > firstAvg && firstAvg > 0) {
         _insights.add({
           'icon': Icons.trending_up,
           'color': const Color(0xFFE76F51),
@@ -2585,195 +2596,223 @@ class _InsightsScreenState extends State<InsightsScreen> {
             )
           : _errorMessage != null
               ? _buildErrorState()
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 📊 قسم Patterns
-                      _buildSectionHeader('📊 Your Patterns', 'Personal patterns detected from your usage data'),
-                      const SizedBox(height: 12),
+              : RefreshIndicator(
+                  onRefresh: _loadData,
+                  color: const Color(0xFF5235C5),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 📊 قسم Patterns
+                        _buildSectionHeader('📊 Your Patterns', 'Personal patterns detected from your usage data'),
+                        const SizedBox(height: 12),
 
-                      _buildCognitiveOverview(),
-                      const SizedBox(height: 16),
+                        _buildCognitiveOverview(),
+                        const SizedBox(height: 16),
 
-                      _buildCognitiveProfile(),
-                      const SizedBox(height: 16),
+                        _buildCognitiveProfile(),
+                        const SizedBox(height: 16),
 
-                      _buildCognitiveLoadTrend(),
-                      const SizedBox(height: 16),
+                        _buildCognitiveLoadTrend(),
+                        const SizedBox(height: 16),
 
-                      _buildRecommendationImpact(),
-                      const SizedBox(height: 16),
+                        _buildRecommendationImpact(),
+                        const SizedBox(height: 16),
 
-                      _buildPersonalPatterns(),
-                      const SizedBox(height: 16),
+                        _buildPersonalPatterns(),
+                        const SizedBox(height: 16),
 
-                      _buildFatigueForecast(),
-                      const SizedBox(height: 16),
+                        _buildFatigueForecast(),
+                        const SizedBox(height: 16),
 
-                      _buildAIInsight(),
+                        _buildAIInsight(),
 
-                      const SizedBox(height: 32),
+                        const SizedBox(height: 32),
 
-                      // 📈 قسم Analytics
-                      _buildSectionHeader('📈 Analytics', 'Detailed statistics and analysis'),
-                      const SizedBox(height: 12),
+                        // 📈 قسم Analytics
+                        _buildSectionHeader('📈 Analytics', 'Detailed statistics and analysis'),
+                        const SizedBox(height: 12),
 
-                      _buildPeriodSelector(),
-                      const SizedBox(height: 16),
+                        _buildPeriodSelector(),
+                        const SizedBox(height: 16),
 
-                      _buildMainChart(),
-                      const SizedBox(height: 16),
+                        _buildMainChart(),
+                        const SizedBox(height: 16),
 
-                      _buildStatisticsSummary(),
-                      const SizedBox(height: 16),
+                        _buildStatisticsSummary(),
+                        const SizedBox(height: 16),
 
-                      _buildCategoryDistribution(),
-                      const SizedBox(height: 16),
+                        _buildCategoryDistribution(),
+                        const SizedBox(height: 16),
 
-                      _buildAIToolsImpact(),
-                      const SizedBox(height: 16),
+                        _buildAIToolsImpact(),
+                        const SizedBox(height: 16),
 
-                      _buildInsightsSummary(),
+                        _buildInsightsSummary(),
 
-                      const SizedBox(height: 80),
-                    ],
+                        const SizedBox(height: 80),
+                      ],
+                    ),
                   ),
                 ),
     );
   }
 
-  // ============================================================
-  // App Bar (محسّن)
-  // ============================================================
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      toolbarHeight: 100,
-      flexibleSpace: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF5235C5).withValues(alpha: 0.08),
-              const Color(0xFF1A5F7A).withValues(alpha: 0.04),
-            ],
-          ),
-          borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(35),
-            bottomRight: Radius.circular(35),
-          ),
-          border: Border(
-            bottom: BorderSide(
-              color: const Color(0xFF5235C5).withValues(alpha: 0.06),
-              width: 1,
-            ),
+// ============================================================
+// App Bar (محسّن - مع حل مشكلة تجاوز النص)
+// ============================================================
+PreferredSizeWidget _buildAppBar() {
+  return AppBar(
+    backgroundColor: Colors.transparent,
+    elevation: 0,
+    toolbarHeight: 90, // ✅ تقليل الارتفاع قليلاً
+    flexibleSpace: Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF5235C5).withValues(alpha: 0.08),
+            const Color(0xFF1A5F7A).withValues(alpha: 0.04),
+          ],
+        ),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+        border: Border(
+          bottom: BorderSide(
+            color: const Color(0xFF5235C5).withValues(alpha: 0.06),
+            width: 1,
           ),
         ),
       ),
-      title: Padding(
-        padding: const EdgeInsets.only(top: 8.0),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF5235C5), Color(0xFF7B2CBF)],
+    ),
+    title: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+      child: Row(
+        children: [
+          // ✅ أيقونة (مصغرة)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF5235C5), Color(0xFF7B2CBF)],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF5235C5).withValues(alpha: 0.25),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF5235C5).withValues(alpha: 0.3),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.insights_rounded,
-                color: Colors.white,
-                size: 28,
-              ),
+              ],
             ),
-            const SizedBox(width: 18),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Insights',
-                    style: GoogleFonts.manrope(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF1A1A2E),
-                      letterSpacing: -0.5,
-                    ),
+            child: const Icon(
+              Icons.insights_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          
+          // ✅ النصوص (مع Expanded لمنع التجاوز)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Insights',
+                  style: GoogleFonts.manrope(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF1A1A2E),
+                    letterSpacing: -0.3,
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        width: 4,
-                        height: 4,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF5235C5),
-                          shape: BoxShape.circle,
-                        ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 4,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF5235C5),
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Your personal patterns & detailed analytics',
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'Patterns & Analytics',
                         style: GoogleFonts.manrope(
-                          fontSize: 13,
+                          fontSize: 11,
                           fontWeight: FontWeight.w400,
                           color: const Color(0xFF6B6B7A),
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF5235C5).withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: const Color(0xFF5235C5).withValues(alpha: 0.12),
-                  width: 1.5,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today_outlined,
-                    color: const Color(0xFF5235C5),
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _selectedPeriod,
-                    style: GoogleFonts.manrope(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF5235C5),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          
+          // ✅ زر التحديث (مصغر)
+          IconButton(
+            onPressed: _loadData,
+            icon: const Icon(Icons.refresh, color: Color(0xFF5235C5), size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            tooltip: 'Refresh data',
+          ),
+          
+          const SizedBox(width: 4),
+          
+          // ✅ زر الفترة (مصغر)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF5235C5).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: const Color(0xFF5235C5).withValues(alpha: 0.1),
+                width: 1,
               ),
             ),
-          ],
-        ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.calendar_today_outlined,
+                  color: const Color(0xFF5235C5),
+                  size: 12,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _selectedPeriod,
+                  style: GoogleFonts.manrope(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF5235C5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ============================================================
   // Section Header
@@ -2815,165 +2854,184 @@ class _InsightsScreenState extends State<InsightsScreen> {
   // ============================================================
   // 1. Cognitive Overview (ديناميكي)
   // ============================================================
-  Widget _buildCognitiveOverview() {
-    return _buildCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF5235C5).withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.calendar_view_week_outlined,
-                  color: Color(0xFF5235C5),
-                  size: 20,
-                ),
+Widget _buildCognitiveOverview() {
+  return _buildCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF5235C5).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(width: 12),
-              Text(
-                'Weekly Overview',
-                style: GoogleFonts.manrope(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF1A1A2E),
-                ),
+              child: const Icon(
+                Icons.calendar_view_week_outlined,
+                color: Color(0xFF5235C5),
+                size: 16,
               ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _checkins.isEmpty
-                ? 'Complete your first check-in to see your overview.'
-                : 'A quick summary of your cognitive health and AI usage activity.',
-            style: GoogleFonts.manrope(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-              color: const Color(0xFF6B6B7A),
-              height: 1.4,
             ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCardEnhanced(
-                  label: 'Total Check-Ins',
-                  value: _totalCheckins.toString(),
-                  subLabel: 'Completed reflections',
-                  icon: Icons.checklist_outlined,
-                  color: const Color(0xFF5235C5),
-                ),
+            const SizedBox(width: 10),
+            Text(
+              'Weekly Overview',
+              style: GoogleFonts.manrope(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1A1A2E),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildStatCardEnhanced(
-                  label: 'Average Load',
-                  value: _totalCheckins > 0 ? (_averageLoad).toStringAsFixed(1) : '--',
-                  suffix: '/10',
-                  subLabel: 'Your average cognitive load',
-                  icon: Icons.trending_up_outlined,
-                  color: const Color(0xFF2D6A4F),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildStatCardEnhanced(
-                  label: 'Highest Load',
-                  value: _totalCheckins > 0 ? _highestLoad.toStringAsFixed(1) : '--',
-                  suffix: '/10',
-                  subLabel: 'Highest detected',
-                  icon: Icons.arrow_upward_outlined,
-                  color: const Color(0xFFE76F51),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCardEnhanced({
-    required String label,
-    required String value,
-    String suffix = '',
-    required String subLabel,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color.withValues(alpha: 0.06),
-            color.withValues(alpha: 0.02),
+            ),
           ],
         ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: color.withValues(alpha: 0.08),
+        const SizedBox(height: 4),
+        Text(
+          _checkins.isEmpty
+              ? 'Complete your first check-in to see your overview.'
+              : 'A quick summary of your cognitive health and AI usage activity.',
+          style: GoogleFonts.manrope(
+            fontSize: 11,
+            fontWeight: FontWeight.w400,
+            color: const Color(0xFF6B6B7A),
+            height: 1.3,
+          ),
         ),
+        const SizedBox(height: 12),
+        // ✅ Row مع المسافات المناسبة
+        Row(
+          children: [
+            Expanded(
+              flex: 1, // ✅ وزن متساوي
+              child: _buildStatCardEnhanced(
+                label: 'Check-Ins',
+                value: _totalCheckins.toString(),
+                subLabel: 'Completed',
+                icon: Icons.checklist_outlined,
+                color: const Color(0xFF5235C5),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              flex: 1,
+              child: _buildStatCardEnhanced(
+                label: 'Average',
+                value: _totalCheckins > 0 ? (_averageLoad).toStringAsFixed(1) : '--',
+                suffix: '/10',
+                subLabel: 'Avg load',
+                icon: Icons.trending_up_outlined,
+                color: const Color(0xFF2D6A4F),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              flex: 1,
+              child: _buildStatCardEnhanced(
+                label: 'Highest',
+                value: _totalCheckins > 0 ? _highestLoad.toStringAsFixed(1) : '--',
+                suffix: '/10',
+                subLabel: 'Peak load',
+                icon: Icons.arrow_upward_outlined,
+                color: const Color(0xFFE76F51),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildStatCardEnhanced({
+  required String label,
+  required String value,
+  String suffix = '',
+  required String subLabel,
+  required IconData icon,
+  required Color color,
+}) {
+  return Container(
+    padding: const EdgeInsets.all(10), // ✅ تقليل padding
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          color.withValues(alpha: 0.06),
+          color.withValues(alpha: 0.02),
+        ],
       ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(height: 6),
-          Text(
+      borderRadius: BorderRadius.circular(12), // ✅ تقليل
+      border: Border.all(
+        color: color.withValues(alpha: 0.08),
+      ),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min, // ✅ تقليل الارتفاع
+      children: [
+        Icon(icon, color: color, size: 16), // ✅ تصغير الأيقونة
+        const SizedBox(height: 4),
+        // ✅ النص مع Flexible لمنع التجاوز
+        Flexible(
+          child: Text(
             label,
             style: GoogleFonts.manrope(
-              fontSize: 10,
+              fontSize: 9, // ✅ تصغير الخط
               fontWeight: FontWeight.w600,
               color: const Color(0xFF6B6B7A),
             ),
             textAlign: TextAlign.center,
+            maxLines: 2, // ✅ السماح بسطرين
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
+        ),
+        const SizedBox(height: 2),
+        // ✅ القيمة مع Row مصغر
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Flexible(
+              child: Text(
                 value,
                 style: GoogleFonts.manrope(
-                  fontSize: 24,
+                  fontSize: 18, // ✅ تصغير
                   fontWeight: FontWeight.w800,
                   color: color,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              if (suffix.isNotEmpty)
-                Text(
-                  suffix,
-                  style: GoogleFonts.manrope(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: color.withValues(alpha: 0.7),
-                  ),
+            ),
+            if (suffix.isNotEmpty)
+              Text(
+                suffix,
+                style: GoogleFonts.manrope(
+                  fontSize: 11, // ✅ تصغير
+                  fontWeight: FontWeight.w600,
+                  color: color.withValues(alpha: 0.7),
                 ),
-            ],
-          ),
-          Text(
+              ),
+          ],
+        ),
+        // ✅ النص السفلي مع Flexible
+        Flexible(
+          child: Text(
             subLabel,
             style: GoogleFonts.manrope(
-              fontSize: 9,
+              fontSize: 8, // ✅ تصغير
               fontWeight: FontWeight.w400,
               color: const Color(0xFF8A8A9A),
             ),
             textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-        ],
-      ),
-    );
-  }
-
+        ),
+      ],
+    ),
+  );
+}
   // ============================================================
   // 2. Cognitive Profile (ديناميكي)
   // ============================================================
@@ -4132,119 +4190,197 @@ class _InsightsScreenState extends State<InsightsScreen> {
     );
   }
 
-  Widget _buildStatisticsSummary() {
-    return _buildCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Statistics Summary',
-            style: GoogleFonts.manrope(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF5235C5),
+Widget _buildStatisticsSummary() {
+  return _buildCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ✅ العنوان مع أيقونة
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF5235C5).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.analytics_outlined,
+                color: Color(0xFF5235C5),
+                size: 18,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _totalCheckins > 0
-                ? 'Key metrics from your cognitive load data'
-                : 'Complete check-ins to see statistics',
-            style: GoogleFonts.manrope(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: const Color(0xFF484554),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _buildStatItem(
-                label: 'Average',
-                value: _totalCheckins > 0 ? _averageLoad.toStringAsFixed(1) : '--',
-                suffix: '/10',
+            const SizedBox(width: 10),
+            Text(
+              'Statistics Summary',
+              style: GoogleFonts.manrope(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
                 color: const Color(0xFF5235C5),
               ),
-              _buildStatItem(
-                label: 'Highest',
-                value: _totalCheckins > 0 ? _highestLoad.toStringAsFixed(1) : '--',
-                suffix: '/10',
-                color: const Color(0xFFE76F51),
-              ),
-              _buildStatItem(
-                label: 'Lowest',
-                value: _totalCheckins > 0 ? _lowestLoad.toStringAsFixed(1) : '--',
-                suffix: '/10',
-                color: const Color(0xFF2D6A4F),
-              ),
-              _buildStatItem(
-                label: 'Total',
-                value: _totalCheckins.toString(),
-                suffix: '',
-                color: const Color(0xFFF4A261),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem({
-    required String label,
-    required String value,
-    required String suffix,
-    required Color color,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.1)),
-        ),
-        child: Column(
-          children: [
-            Text(
-              label,
-              style: GoogleFonts.manrope(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF8A8A9A),
-              ),
             ),
-            const SizedBox(height: 4),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _totalCheckins > 0
+              ? 'Key metrics from your cognitive load data'
+              : 'Complete check-ins to see statistics',
+          style: GoogleFonts.manrope(
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+            color: const Color(0xFF8A8A9A),
+          ),
+        ),
+        const SizedBox(height: 14),
+        // ✅ شبكة 2x2 (صفين وعمودين) بدلاً من صف واحد
+        Column(
+          children: [
+            // الصف الأول
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(
-                  value,
-                  style: GoogleFonts.manrope(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: color,
+                Expanded(
+                  child: _buildStatItemImproved(
+                    label: 'Average',
+                    value: _totalCheckins > 0 ? _averageLoad.toStringAsFixed(1) : '--',
+                    suffix: '/10',
+                    color: const Color(0xFF5235C5),
+                    icon: Icons.trending_up_outlined,
                   ),
                 ),
-                if (suffix.isNotEmpty)
-                  Text(
-                    suffix,
-                    style: GoogleFonts.manrope(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: color,
-                    ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildStatItemImproved(
+                    label: 'Highest',
+                    value: _totalCheckins > 0 ? _highestLoad.toStringAsFixed(1) : '--',
+                    suffix: '/10',
+                    color: const Color(0xFFE76F51),
+                    icon: Icons.arrow_upward_outlined,
                   ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // الصف الثاني
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatItemImproved(
+                    label: 'Lowest',
+                    value: _totalCheckins > 0 ? _lowestLoad.toStringAsFixed(1) : '--',
+                    suffix: '/10',
+                    color: const Color(0xFF2D6A4F),
+                    icon: Icons.arrow_downward_outlined,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildStatItemImproved(
+                    label: 'Total',
+                    value: _totalCheckins.toString(),
+                    suffix: '',
+                    color: const Color(0xFFF4A261),
+                    icon: Icons.checklist_outlined,
+                  ),
+                ),
               ],
             ),
           ],
         ),
+      ],
+    ),
+  );
+}
+Widget _buildStatItemImproved({
+  required String label,
+  required String value,
+  required String suffix,
+  required Color color,
+  required IconData icon,
+}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          color.withValues(alpha: 0.06),
+          color.withValues(alpha: 0.02),
+        ],
       ),
-    );
-  }
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: color.withValues(alpha: 0.1),
+        width: 1,
+      ),
+    ),
+    child: Row(
+      children: [
+        // ✅ أيقونة الجهة اليسرى
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: color),
+        ),
+        const SizedBox(width: 8),
+        // ✅ النصوص في Column
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.manrope(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF8A8A9A),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    value,
+                    style: GoogleFonts.manrope(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (suffix.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 2),
+                      child: Text(
+                        suffix,
+                        style: GoogleFonts.manrope(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: color.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+
+
 
   Widget _buildCategoryDistribution() {
     return _buildCard(
@@ -4347,6 +4483,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
   }
 
   Widget _buildAIToolsImpact() {
+    final hasData = _toolsImpact.values.any((v) => v > 0);
+    
     return _buildCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4371,14 +4509,29 @@ class _InsightsScreenState extends State<InsightsScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          if (_totalCheckins > 0)
+          if (_totalCheckins > 0 && hasData)
             Column(
               children: [
-                _buildImpactRow('1-2 Tools', 3.5, 'Low', const Color(0xFF2D6A4F)),
+                _buildImpactRow(
+                  '1-2 Tools', 
+                  _toolsImpact['1-2 Tools'] ?? 0,
+                  '${_toolsImpact['1-2 Tools']?.toStringAsFixed(0) ?? 0}%',
+                  const Color(0xFF2D6A4F),
+                ),
                 const SizedBox(height: 12),
-                _buildImpactRow('3-4 Tools', 5.8, 'Medium', const Color(0xFFF4A261)),
+                _buildImpactRow(
+                  '3-4 Tools', 
+                  _toolsImpact['3-4 Tools'] ?? 0,
+                  '${_toolsImpact['3-4 Tools']?.toStringAsFixed(0) ?? 0}%',
+                  const Color(0xFFF4A261),
+                ),
                 const SizedBox(height: 12),
-                _buildImpactRow('5+ Tools', 7.2, 'High', const Color(0xFFE76F51)),
+                _buildImpactRow(
+                  '5+ Tools', 
+                  _toolsImpact['5+ Tools'] ?? 0,
+                  '${_toolsImpact['5+ Tools']?.toStringAsFixed(0) ?? 0}%',
+                  const Color(0xFFE76F51),
+                ),
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -4432,7 +4585,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
     );
   }
 
-  Widget _buildImpactRow(String label, double score, String level, Color color) {
+  Widget _buildImpactRow(String label, double percentage, String value, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -4458,7 +4611,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
-                value: score / 10,
+                value: percentage / 100,
                 backgroundColor: const Color(0xFFE8E8EE),
                 valueColor: AlwaysStoppedAnimation<Color>(color),
                 minHeight: 8,
@@ -4467,7 +4620,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
           ),
           const SizedBox(width: 12),
           Text(
-            '${score.toStringAsFixed(1)}/10',
+            value,
             style: GoogleFonts.manrope(
               fontSize: 14,
               fontWeight: FontWeight.w700,

@@ -1,5 +1,6 @@
 // ============================================================
 // 📄 lib/screens/onboarding_screen.dart
+// ✅ مع زر Skip و didChangeDependencies
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -37,8 +38,57 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   ];
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _checkIfAlreadySeen();
+  }
+
+  Future<void> _checkIfAlreadySeen() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeen = prefs.getBool('hasSeenOnboarding') ?? false;
+    
+    if (hasSeen && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // ✅ إضافة AppBar مع زر Skip
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          if (_currentPage < _pages.length - 1)
+            TextButton(
+              onPressed: () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('hasSeenOnboarding', true);
+                debugPrint('⏭️ Onboarding skipped by user');
+                
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    (route) => false,
+                  );
+                }
+              },
+              child: const Text(
+                'Skip',
+                style: TextStyle(
+                  color: Color(0xFF5235C5),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -203,15 +253,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         curve: Curves.easeInOut,
                       );
                     } else {
-                      // ✅ حفظ أن المستخدم شاهد الترحيب
                       final prefs = await SharedPreferences.getInstance();
                       await prefs.setBool('hasSeenOnboarding', true);
                       debugPrint('✅ Onboarding completed and saved!');
                       
                       if (mounted) {
-                        Navigator.pushReplacement(
+                        Navigator.pushAndRemoveUntil(
                           context,
                           MaterialPageRoute(builder: (context) => const LoginScreen()),
+                          (route) => false,
                         );
                       }
                     }

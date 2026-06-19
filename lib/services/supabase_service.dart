@@ -10,7 +10,7 @@ class SupabaseService {
   User? get currentUser => client.auth.currentUser;
 
   // ========== المصادقة ==========
-  
+
   Future<AuthResponse> signIn(String email, String password) async {
     return await client.auth.signInWithPassword(
       email: email,
@@ -209,12 +209,25 @@ class SupabaseService {
   }
 
   // ========== حذف الحساب ==========
-
+  // ✅ تم التعديل: لا يمكن استدعاء auth.admin.* مباشرة من التطبيق
+  // (يتطلب service_role key وهو ممنوع داخل تطبيق الموبايل).
+  // بدلاً من ذلك، نستدعي Edge Function تعمل على الخادم بصلاحيات admin.
+  // يجب نشرها أولاً: supabase functions deploy delete-account
   Future<void> deleteAccount() async {
     final userId = currentUser?.id;
-    if (userId != null) {
-      await client.from('users').delete().eq('id', userId);
-      await client.auth.admin.deleteUser(userId);
+    if (userId == null) {
+      throw Exception('No user is currently signed in');
     }
+
+    final response = await client.functions.invoke('delete-account');
+
+    if (response.status != 200) {
+      throw Exception(
+        'Failed to delete account: ${response.data?['error'] ?? 'Unknown error'}',
+      );
+    }
+
+    // ✅ تسجيل الخروج محلياً بعد نجاح الحذف على الخادم
+    await client.auth.signOut();
   }
 }

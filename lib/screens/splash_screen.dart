@@ -10,6 +10,7 @@ import 'login_screen.dart';
 import 'privacy_consent_screen.dart';
 import 'initial_questionnaire.dart';
 import 'home_dashboard.dart';
+import '../services/sync_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -29,8 +30,15 @@ class _SplashScreenState extends State<SplashScreen> {
     // ✅ الانتظار 2.5 ثانية لظهور الشاشة
     await Future.delayed(const Duration(milliseconds: 2500));
 
+    // ✅ حاول المزامنة عند فتح التطبيق (تم نقلها من main.dart)
+    try {
+      await SyncService.syncPending();
+    } catch (e) {
+      debugPrint('⚠️ Sync failed (continuing anyway): $e');
+    }
+
     final prefs = await SharedPreferences.getInstance();
-    
+
     // ✅ التحقق من حالة المستخدم
     final hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;
     final hasAcceptedPrivacy = prefs.getBool('hasAcceptedPrivacy') ?? false;

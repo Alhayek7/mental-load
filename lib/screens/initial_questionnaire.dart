@@ -29,68 +29,64 @@ class _InitialQuestionnaireState extends State<InitialQuestionnaire> {
   String _fatigueTime = '';
   String _peakFatigueTime = '';
 
-  // قائمة الصفحات
+  @override
+  void initState() {
+    super.initState();
+    debugPrint('🔍 Initial Questionnaire started');
+  }
 
-@override
-void initState() {
-  super.initState();
-  debugPrint('🔍 Initial Questionnaire started');
-  debugPrint('🔍 Selected tools: $_selectedTools');
-}
-
-List<Widget> get _pages => [
-  _buildWelcomePage(),
-  _buildQuestionPage(
-    pageIndex: 1,
-    title: 'Which AI tools do you use regularly?',
-    subtitle: '(Select all that apply)',
-    imagePath: 'assets/images/2_WEMAN.png',
-    type: 'multi_select',
-    options: ['ChatGPT', 'Gemini', 'Claude', 'Microsoft Copilot', 'Perplexity', 'Other'],
-  ),
-  _buildQuestionPage(
-    pageIndex: 2,
-    title: 'How much time do you spend using AI tools each day?',
-    subtitle: 'Select the range that best fits your daily usage',
-    imagePath: 'assets/images/Group.png',
-    type: 'single_select',
-    options: ['Less than 1 hour', '1 - 2 hours', '2 - 4 hours', '4 - 6 hours', '6 - 8 hours', 'More than 8 hours'],
-  ),
-  _buildQuestionPage(
-    pageIndex: 3,
-    title: 'Do you rely on AI tools when making important decisions?',
-    subtitle: 'Select one option',
-    imagePath: 'assets/images/undraw_investing_uzcu 1.png',
-    type: 'yes_no',
-  ),
-  _buildQuestionPage(
-    pageIndex: 4,
-    title: 'How difficult is it for you to stay focused while using AI tools?',
-    subtitle: 'Rate from 1 to 5',
-    imagePath: 'assets/images/undraw_investing_uzcu 1.png',
-    type: 'scale',
-    min: 1,
-    max: 5,
-    labels: ['Rarely', 'Sometimes', 'Often', 'Very Often', 'Very Difficult'],
-  ),
-  _buildQuestionPage(
-    pageIndex: 5,
-    title: 'How often do you feel mentally fatigued after long AI sessions?',
-    subtitle: 'Select the time of day',
-    imagePath: 'assets/images/undraw_investing_uzcu 1.png',
-    type: 'single_select',
-    options: ['Morning', 'Afternoon', 'Evening', 'Late Night'],
-  ),
-  _buildQuestionPage(
-    pageIndex: 6,
-    title: 'When do you usually experience the highest level of mental fatigue?',
-    subtitle: 'Select the time of day',
-    imagePath: 'assets/images/undraw_investing_uzcu 1.png',
-    type: 'single_select',
-    options: ['Morning', 'Afternoon', 'Evening', 'Late Night'],
-  ),
-];
-
+  List<Widget> get _pages => [
+    _buildWelcomePage(),
+    _buildQuestionPage(
+      pageIndex: 1,
+      title: 'Which AI tools do you use regularly?',
+      subtitle: '(Select all that apply)',
+      imagePath: 'assets/images/2_WEMAN.png',
+      type: 'multi_select',
+      options: ['ChatGPT', 'Gemini', 'Claude', 'Microsoft Copilot', 'Perplexity', 'Other'],
+    ),
+    _buildQuestionPage(
+      pageIndex: 2,
+      title: 'How much time do you spend using AI tools each day?',
+      subtitle: 'Select the range that best fits your daily usage',
+      imagePath: 'assets/images/Group.png',
+      type: 'single_select',
+      options: ['Less than 1 hour', '1 - 2 hours', '2 - 4 hours', '4 - 6 hours', '6 - 8 hours', 'More than 8 hours'],
+    ),
+    _buildQuestionPage(
+      pageIndex: 3,
+      title: 'Do you rely on AI tools when making important decisions?',
+      subtitle: 'Select one option',
+      imagePath: 'assets/images/undraw_investing_uzcu 1.png',
+      type: 'yes_no',
+    ),
+    _buildQuestionPage(
+      pageIndex: 4,
+      title: 'How difficult is it for you to stay focused while using AI tools?',
+      subtitle: 'Rate from 1 to 5',
+      imagePath: 'assets/images/undraw_investing_uzcu 1.png',
+      type: 'scale',
+      min: 1,
+      max: 5,
+      labels: ['Rarely', 'Sometimes', 'Often', 'Very Often', 'Very Difficult'],
+    ),
+    _buildQuestionPage(
+      pageIndex: 5,
+      title: 'How often do you feel mentally fatigued after long AI sessions?',
+      subtitle: 'Select the time of day',
+      imagePath: 'assets/images/undraw_investing_uzcu 1.png',
+      type: 'single_select',
+      options: ['Morning', 'Afternoon', 'Evening', 'Late Night'],
+    ),
+    _buildQuestionPage(
+      pageIndex: 6,
+      title: 'When do you usually experience the highest level of mental fatigue?',
+      subtitle: 'Select the time of day',
+      imagePath: 'assets/images/undraw_investing_uzcu 1.png',
+      type: 'single_select',
+      options: ['Morning', 'Afternoon', 'Evening', 'Late Night'],
+    ),
+  ];
 
   bool get _canProceed {
     switch (_currentPage) {
@@ -113,93 +109,99 @@ List<Widget> get _pages => [
     }
   }
 
-Future<void> _saveAnswers() async {
-  setState(() => _isLoading = true);
+  Future<void> _saveAnswers() async {
+    setState(() => _isLoading = true);
 
-  final prefs = await SharedPreferences.getInstance();
-  final isGuest = prefs.getBool('isGuest') ?? false;
+    final prefs = await SharedPreferences.getInstance();
+    final isGuest = prefs.getBool('isGuest') ?? false;
 
-  // قيم افتراضية في حالة Skip
-  final tools = _selectedTools.isEmpty ? ['Other'] : _selectedTools;
-  final usage = _dailyUsage.isEmpty ? 'Less than 1 hour' : _dailyUsage;
-  final relies = _reliesOnAI ?? false;
-  final fatigue = _fatigueTime.isEmpty ? 'Evening' : _fatigueTime;
-  final peakFatigue = _peakFatigueTime.isEmpty ? 'Evening' : _peakFatigueTime;
-  final score = _calculateScore();
+    // قيم افتراضية في حالة Skip
+    final tools = _selectedTools.isEmpty ? ['Other'] : _selectedTools;
+    final usage = _dailyUsage.isEmpty ? 'Less than 1 hour' : _dailyUsage;
+    final relies = _reliesOnAI ?? false;
+    final fatigue = _fatigueTime.isEmpty ? 'Evening' : _fatigueTime;
+    final peakFatigue = _peakFatigueTime.isEmpty ? 'Evening' : _peakFatigueTime;
+    final score = _calculateScore();
 
-  final data = {
-    'selected_tools': tools,
-    'daily_usage': usage,
-    'relies_on_ai': relies,
-    'focus_difficulty': _focusDifficulty,
-    'mental_fatigue': fatigue,
-    'fatigue_time': peakFatigue,
-    'cognitive_load_score': score,
-    'created_at': DateTime.now().toIso8601String(),
-  };
+    final data = {
+      'selected_tools': tools,
+      'daily_usage': usage,
+      'relies_on_ai': relies,
+      'focus_difficulty': _focusDifficulty,
+      'mental_fatigue': fatigue,
+      'fatigue_time': peakFatigue,
+      'cognitive_load_score': score,
+      'created_at': DateTime.now().toIso8601String(),
+    };
 
-  if (isGuest) {
-    // Guest - حفظ محلي فقط
+    if (isGuest) {
+      // Guest - حفظ محلي فقط
+      await prefs.setBool('hasCompletedQuestionnaire', true);
+      debugPrint('✅ Guest - saved locally');
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeDashboard()),
+        );
+      }
+      return;
+    }
+
+    final user = _supabaseService.currentUser;
+    if (user == null) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please login first'),
+            backgroundColor: Color(0xFFE76F51),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      // ✅ حاول Supabase أولاً
+      data['user_id'] = user.id;
+      await _supabaseService.client
+          .from('questionnaire_history')
+          .insert(data);
+
+      await _supabaseService.client.from('users').upsert({
+        'id': user.id,
+        'questionnaire_completed': true,
+      });
+
+      debugPrint('✅ Saved to Supabase');
+    } catch (e) {
+      // ❌ فشل الإنترنت - احفظ محلياً
+      await SyncService.savePending(data);
+      debugPrint('📴 No internet - saved locally for later sync');
+    }
+
     await prefs.setBool('hasCompletedQuestionnaire', true);
-    debugPrint('✅ Guest - saved locally');
+
     if (mounted) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => HomeDashboard()),
+        MaterialPageRoute(builder: (context) => const HomeDashboard()),
       );
     }
-    return;
   }
-
-  final user = _supabaseService.currentUser;
-  if (user == null) {
-    setState(() => _isLoading = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please login first'),
-      backgroundColor: Color(0xFFE76F51)),
-    );
-    return;
-  }
-
-  try {
-    // ✅ حاول Supabase أولاً
-    data['user_id'] = user.id;
-    await _supabaseService.client
-        .from('questionnaire_history')
-        .insert(data);
-
-    await _supabaseService.client.from('users').upsert({
-      'id': user.id,
-      'questionnaire_completed': true,
-    });
-
-    debugPrint('✅ Saved to Supabase');
-  } catch (e) {
-    // ❌ فشل الإنترنت - احفظ محلياً
-    await SyncService.savePending(data);
-    debugPrint('📴 No internet - saved locally for later sync');
-  }
-
-  await prefs.setBool('hasCompletedQuestionnaire', true);
-
-  if (mounted) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => HomeDashboard()),
-    );
-  }
-}
 
   int _calculateScore() {
     int score = 2;
-    if (_selectedTools.length >= 4)
+    if (_selectedTools.length >= 4) {
       score += 2;
-    else if (_selectedTools.length >= 2)
+    } else if (_selectedTools.length >= 2) {
       score += 1;
-    if (_dailyUsage.contains('6') || _dailyUsage.contains('8'))
+    }
+    if (_dailyUsage.contains('6') || _dailyUsage.contains('8')) {
       score += 2;
-    else if (_dailyUsage.contains('4'))
+    } else if (_dailyUsage.contains('4')) {
       score += 1;
+    }
     score += _focusDifficulty ~/ 2;
     return score.clamp(1, 5);
   }
@@ -232,16 +234,16 @@ Future<void> _saveAnswers() async {
                 ),
               )
             : null,
-actions: [
-  if (_currentPage > 0)
-    TextButton(
-      onPressed: () => _saveAnswers(),
-      child: const Text(
-        'Skip',
-        style: TextStyle(fontSize: 14, color: Color(0xFF8A8A9A)),
-      ),
-    ),
-],
+        actions: [
+          if (_currentPage > 0)
+            TextButton(
+              onPressed: () => _saveAnswers(),
+              child: const Text(
+                'Skip',
+                style: TextStyle(fontSize: 14, color: Color(0xFF8A8A9A)),
+              ),
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -256,7 +258,7 @@ actions: [
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${_currentPage} / ${totalPages - 1}',
+                        '$_currentPage / ${totalPages - 1}',
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -289,12 +291,17 @@ actions: [
 
           // المحتوى
           Expanded(
-            child: PageView(
+            child: PageView.builder(
+              // ✅ تم التحويل من PageView(children: _pages) إلى PageView.builder
+              // لتحميل كل صفحة فقط عند الحاجة إليها فعلياً (Lazy Loading) بدل
+              // بناء كل الصفحات الـ 7 دفعة واحدة عند كل rebuild - يحسّن الأداء
+              // ويمنع استدعاءات متكررة غير ضرورية لدوال البناء
               controller: _pageController,
+              itemCount: _pages.length,
               onPageChanged: (index) {
                 setState(() => _currentPage = index);
               },
-              children: _pages,
+              itemBuilder: (context, index) => _pages[index],
             ),
           ),
 
@@ -419,14 +426,12 @@ actions: [
   // ========== صفحات الأسئلة ==========
   Widget _buildWelcomePage() {
     return SingleChildScrollView(
-      // ✅ أضف SingleChildScrollView
       padding: const EdgeInsets.all(32),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // الصورة
           Container(
-            width: 180, // ✅ صغر حجم الصورة قليلاً
+            width: 180,
             height: 180,
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -458,12 +463,12 @@ actions: [
             ),
           ).animate().scale(duration: 500.ms, curve: Curves.easeOutBack),
 
-          const SizedBox(height: 24), // ✅ قلل المسافة
+          const SizedBox(height: 24),
 
           const Text(
             'Help Us Understand You',
             style: TextStyle(
-              fontSize: 24, // ✅ صغر حجم الخط
+              fontSize: 24,
               fontWeight: FontWeight.bold,
               color: Color(0xFF1A1A2E),
             ),
@@ -475,7 +480,7 @@ actions: [
           const Text(
             'Before we begin, we\'d like to learn a little about your AI usage habits.\n\nYour answers will help us personalize insights, recommendations, and cognitive load predictions based on your unique usage patterns.\n\nThis assessment takes less than a minute.',
             style: TextStyle(
-              fontSize: 14, // ✅ صغر حجم الخط
+              fontSize: 14,
               color: Color(0xFF6B6B7A),
               height: 1.5,
             ),
@@ -504,7 +509,6 @@ actions: [
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ✅ الصورة (مصغرة)
           Center(
             child: Container(
               width: 100,
@@ -541,7 +545,6 @@ actions: [
           ),
           const SizedBox(height: 12),
 
-          // ✅ العنوان (مصغر)
           Text(
             title,
             style: const TextStyle(
@@ -552,14 +555,12 @@ actions: [
           ),
           const SizedBox(height: 4),
 
-          // ✅ الوصف (مصغر)
           Text(
             subtitle,
             style: const TextStyle(fontSize: 12, color: Color(0xFF8A8A9A)),
           ),
           const SizedBox(height: 12),
 
-          // ✅ المحتوى (بدون Expanded)
           _buildQuestionContent(type, options, min, max, labels),
 
           const SizedBox(height: 12),
@@ -589,51 +590,67 @@ actions: [
     }
   }
 
-Widget _buildMultiSelect(List<String> options) {
-  return Wrap(
-    spacing: 10,
-    runSpacing: 10,
-    children: options.map((option) {
-      return ChoiceChip(
-        label: Text(option),
-        selected: _selectedTools.contains(option),
-        onSelected: (selected) {
-          setState(() {
-            if (selected) {
-              if (!_selectedTools.contains(option)) {
-                _selectedTools.add(option);
+  Widget _buildMultiSelect(List<String> options) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: options.map((option) {
+        return ChoiceChip(
+          label: Text(option),
+          selected: _selectedTools.contains(option),
+          onSelected: (selected) {
+            setState(() {
+              if (selected) {
+                if (!_selectedTools.contains(option)) {
+                  _selectedTools.add(option);
+                }
+              } else {
+                _selectedTools.remove(option);
               }
-            } else {
-              _selectedTools.remove(option);
-            }
-          });
-        },
-        selectedColor: const Color(0xFF5E35B1),
-        backgroundColor: Colors.white,
-        labelStyle: TextStyle(
-          color: _selectedTools.contains(option) ? Colors.white : Colors.black,
-        ),
-        side: BorderSide(
-          color: _selectedTools.contains(option) ? const Color(0xFF5E35B1) : Colors.grey.shade300,
-          width: 1.5,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      );
-    }).toList(),
-  );
-}
+            });
+          },
+          selectedColor: const Color(0xFF5E35B1),
+          backgroundColor: Colors.white,
+          labelStyle: TextStyle(
+            color: _selectedTools.contains(option) ? Colors.white : Colors.black,
+          ),
+          side: BorderSide(
+            color: _selectedTools.contains(option) ? const Color(0xFF5E35B1) : Colors.grey.shade300,
+            width: 1.5,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        );
+      }).toList(),
+    );
+  }
 
   Widget _buildSingleSelect(List<String> options) {
-    debugPrint('🔍 Selected tools: $_selectedTools');
     return Column(
       children: options.map((option) {
-        final isSelected =
-            _dailyUsage == option ||
-            _fatigueTime == option ||
-            _peakFatigueTime == option;
+        // ✅ تم الإصلاح: التحقق من المتغير الصحيح بناءً على السؤال الحالي فقط.
+        // قبل هذا التعديل، كان الكود يفحص الثلاثة متغيرات معاً
+        // (_dailyUsage, _fatigueTime, _peakFatigueTime)، وبما أن السؤالين 5 و 6
+        // يستخدمان نفس قائمة الخيارات بالضبط (Morning/Afternoon/Evening/Late Night)،
+        // كان اختيار المستخدم في السؤال 5 يظهر محدداً تلقائياً في السؤال 6 (وبالعكس)
+        // دون أن يضغط المستخدم عليه فعلياً - مما كان يسبب التباساً بصرياً حقيقياً.
+        bool isSelected;
+        switch (_currentPage) {
+          case 2:
+            isSelected = _dailyUsage == option;
+            break;
+          case 5:
+            isSelected = _fatigueTime == option;
+            break;
+          case 6:
+            isSelected = _peakFatigueTime == option;
+            break;
+          default:
+            isSelected = false;
+        }
+
         return GestureDetector(
           onTap: () {
             setState(() {

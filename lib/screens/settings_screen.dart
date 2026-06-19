@@ -11,7 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
+// import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'login_screen.dart';
 import '../services/supabase_service.dart';
@@ -33,7 +33,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final SupabaseService _supabaseService = SupabaseService();
-  
+
   // ============================================================
   // متغيرات البيانات
   // ============================================================
@@ -43,57 +43,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _errorMessage;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _loadUserData();
   }
 
   // ============================================================
   // جلب بيانات المستخدم من Supabase
   // ============================================================
-  Future<void> _loadUserData() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+Future<void> _loadUserData() async {
+  setState(() {
+    _isLoading = true;
+    _errorMessage = null;
+  });
 
-    try {
-      final user = _supabaseService.currentUser;
-      if (user != null) {
-        debugPrint('✅ Current user: ${user.email}');
-        
-        final data = await _supabaseService.getUserData(user.id);
-        if (data != null) {
-          debugPrint('✅ User data loaded: ${data['full_name']}');
-          setState(() {
-            _userData = data;
-            _isLoading = false;
-          });
-        } else {
-          debugPrint('⚠️ No user data found in users table');
-          setState(() {
-            _userData = {
-              'full_name': user.userMetadata?['full_name'] ?? user.email?.split('@').first ?? 'User',
-              'email': user.email ?? 'No email',
-              'total_checkins': 0,
-            };
-            _isLoading = false;
-          });
-        }
-      } else {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'User not logged in';
-        });
-      }
-    } catch (e) {
-      debugPrint('❌ Error loading user data: $e');
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final isGuest = prefs.getBool('isGuest') ?? false;
+
+    if (isGuest) {
       setState(() {
+        _userData = {
+          'full_name': 'Guest',
+          'email': 'guest@mentalload.app',
+          'total_checkins': 0,
+          'is_guest': true,
+        };
         _isLoading = false;
-        _errorMessage = 'Failed to load user data';
       });
+      return;
     }
+
+    final user = _supabaseService.currentUser;
+    if (user != null) {
+      // ... باقي الكود
+    }
+  } catch (e) {
+    // ... معالجة الأخطاء
   }
+}
 
   // ============================================================
   // عرض رسالة
@@ -102,61 +90,70 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? const Color(0xFFE76F51) : const Color(0xFF2D6A4F),
+        backgroundColor: isError
+            ? const Color(0xFFE76F51)
+            : const Color(0xFF2D6A4F),
         duration: const Duration(seconds: 3),
       ),
     );
   }
 
-// ============================================================
-// 🎙️ طلب إذن الميكروفون (متوافق مع جميع المنصات)
-// ============================================================
-Future<void> _requestMicrophonePermission() async {
-  // التحقق من المنصة
-  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-    _showMessage('🔊 Microphone permission is not required on desktop');
-    return;
-  }
-
-  try {
-    final status = await Permission.microphone.request();
-    if (status.isGranted) {
-      _showMessage('✅ Microphone permission granted!');
-    } else if (status.isDenied) {
-      _showMessage('⚠️ Microphone permission denied', isError: true);
-    } else if (status.isPermanentlyDenied) {
-      _showMessage('⚠️ Permission permanently denied. Please enable in settings.', isError: true);
+  // ============================================================
+  // 🎙️ طلب إذن الميكروفون (متوافق مع جميع المنصات)
+  // ============================================================
+  Future<void> _requestMicrophonePermission() async {
+    // التحقق من المنصة
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      _showMessage('🔊 Microphone permission is not required on desktop');
+      return;
     }
-  } catch (e) {
-    _showMessage('⚠️ Please grant microphone permission in system settings', isError: true);
+
+    try {
+      final status = await Permission.microphone.request();
+      if (status.isGranted) {
+        _showMessage('✅ Microphone permission granted!');
+      } else if (status.isDenied) {
+        _showMessage('⚠️ Microphone permission denied', isError: true);
+      } else if (status.isPermanentlyDenied) {
+        _showMessage(
+          '⚠️ Permission permanently denied. Please enable in settings.',
+          isError: true,
+        );
+      }
+    } catch (e) {
+      _showMessage(
+        '⚠️ Please grant microphone permission in system settings',
+        isError: true,
+      );
+    }
   }
-}
 
-// ============================================================
-// 📧 التواصل معنا
-// ============================================================
-void _contactUs() {
-  showDialog(
-    context: context,
-    barrierDismissible: true,
-    builder: (context) => const ContactUsDialog(),
-  );
-}
+  // ============================================================
+  // 📧 التواصل معنا
+  // ============================================================
+  void _contactUs() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => const ContactUsDialog(),
+    );
+  }
 
-// ============================================================
-// ⭐ تقييم التطبيق (استخدام الصفحة الداخلية)
-// ============================================================
-void _rateApp() {
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const RateAppScreen()),
-  );
-}
+  // ============================================================
+  // ⭐ تقييم التطبيق (استخدام الصفحة الداخلية)
+  // ============================================================
+  void _rateApp() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const RateAppScreen()),
+    );
+  }
+
   // ============================================================
   // 1️⃣ EDIT PROFILE - تعديل الملف الشخصي
   // ============================================================
 Future<void> _editProfile() async {
-  final result = await showDialog<String>(
+  await showDialog<String>(
     context: context,
     barrierDismissible: true,
     builder: (context) => EditProfileDialog(
@@ -182,9 +179,7 @@ Future<void> _editProfile() async {
           .eq('id', user.id);
 
       await _supabaseService.client.auth.updateUser(
-        UserAttributes(
-          data: {'full_name': newName},
-        ),
+        UserAttributes(data: {'full_name': newName}),
       );
 
       await _loadUserData();
@@ -241,14 +236,14 @@ Future<void> _editProfile() async {
       final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
 
       final directory = await getApplicationDocumentsDirectory();
-      final fileName = 'clearload_export_${DateTime.now().millisecondsSinceEpoch}.json';
+      final fileName =
+          'clearload_export_${DateTime.now().millisecondsSinceEpoch}.json';
       final file = File('${directory.path}/$fileName');
       await file.writeAsString(jsonString);
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: '📊 Here is my ClearLoad data export.',
-      );
+      await Share.shareXFiles([
+        XFile(file.path),
+      ], text: '📊 Here is my ClearLoad data export.');
 
       _showMessage('✅ Data exported successfully!');
     } catch (e) {
@@ -259,17 +254,15 @@ Future<void> _editProfile() async {
     }
   }
 
-// ============================================================
-// 3️⃣ PRIVACY POLICY - سياسة الخصوصية
-// ============================================================
-void _showPrivacyPolicy() {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const PrivacyPolicyScreen(),
-    ),
-  );
-}
+  // ============================================================
+  // 3️⃣ PRIVACY POLICY - سياسة الخصوصية
+  // ============================================================
+  void _showPrivacyPolicy() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()),
+    );
+  }
 
   Widget _buildPolicySection({required String title, required String content}) {
     return Column(
@@ -300,13 +293,12 @@ void _showPrivacyPolicy() {
   // ============================================================
   // 4️⃣ TERMS OF SERVICE - شروط الخدمة
   // ============================================================
-void _showTermsOfService() {
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const TermsScreen()),
-  );
-}
-
+  void _showTermsOfService() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TermsScreen()),
+    );
+  }
 
   Widget _buildTermsSection({required String title, required String content}) {
     return Column(
@@ -334,74 +326,114 @@ void _showTermsOfService() {
     );
   }
 
-
 // ============================================================
-// تسجيل الخروج
+// تسجيل الخروج (يدعم Guest و المستخدمين المسجلين)
 // ============================================================
 Future<void> _logout() async {
+  // ✅ التحقق من حالة Guest
+  final bool isGuest = _userData?['is_guest'] ?? false;
+
+  // ✅ استخدام showDialog مباشرة بدلاً من LogoutDialog
   final confirmed = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (context) => LogoutDialog(
-      isLoading: _isLoggingOut,
-      onConfirm: () async {
-        setState(() => _isLoggingOut = true);
-
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.clear();
-          await _supabaseService.signOut();
-          
-          if (mounted) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const LoginScreen()),
-              (route) => false,
-            );
-          }
-        } catch (e) {
-          setState(() => _isLoggingOut = false);
-          _showMessage('Failed to logout. Please try again.', isError: true);
-        }
-      },
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(
+        isGuest ? 'Exit Guest Mode?' : 'Logout?',
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      content: Text(
+        isGuest 
+            ? 'You will lose any unsaved data. Are you sure you want to exit?'
+            : 'Are you sure you want to logout from your account?',
+        style: const TextStyle(fontSize: 14),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            if (mounted) {
+              Navigator.pop(context, true);
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFE76F51),
+            foregroundColor: Colors.white,
+          ),
+          child: Text(isGuest ? 'Exit' : 'Logout'),
+        ),
+      ],
     ),
   );
+
+  if (confirmed != true) return;
+
+  setState(() => _isLoggingOut = true);
+
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    if (!isGuest) {
+      await _supabaseService.signOut();
+    }
+
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  } catch (e) {
+    if (mounted) {
+      setState(() => _isLoggingOut = false);
+      _showMessage('Failed to logout. Please try again.', isError: true);
+    }
+  }
 }
 
-// ============================================================
-// حذف الحساب
-// ============================================================
-Future<void> _deleteAccount() async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => DeleteAccountDialog(
-      isLoading: _isLoggingOut,
-      onConfirm: () async {
-        setState(() => _isLoggingOut = true);
+  // ============================================================
+  // حذف الحساب
+  // ============================================================
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => DeleteAccountDialog(
+        isLoading: _isLoggingOut,
+        onConfirm: () async {
+          setState(() => _isLoggingOut = true);
 
-        try {
-          await _supabaseService.deleteAccount();
-          
-          if (mounted) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (context) => const LoginScreen()),
-              (route) => false,
+          try {
+            await _supabaseService.deleteAccount();
+
+            if (mounted) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+                (route) => false,
+              );
+            }
+          } catch (e) {
+            setState(() => _isLoggingOut = false);
+            _showMessage(
+              'Failed to delete account. Please try again.',
+              isError: true,
             );
           }
-        } catch (e) {
-          setState(() => _isLoggingOut = false);
-          _showMessage('Failed to delete account. Please try again.', isError: true);
-        }
-      },
-    ),
-  );
-}
+        },
+      ),
+    );
+  }
 
-// ============================================================
-// حذف البيانات (Delete My Data)
-// ============================================================
+  // ============================================================
+  // حذف البيانات (Delete My Data)
+  // ============================================================
 Future<void> _deleteAllData() async {
   final confirmed = await showDialog<bool>(
     context: context,
@@ -440,20 +472,23 @@ Future<void> _deleteAllData() async {
               .eq('id', user.id);
 
           await _loadUserData();
-          
+
           if (mounted) {
-            Navigator.pop(context);  // إغلاق النافذة
+            Navigator.pop(context);
             _showMessage('All your data has been deleted successfully.');
           }
         } catch (e) {
           debugPrint('❌ Error deleting data: $e');
-          setState(() => _isLoading = false);
-          _showMessage('Failed to delete data. Please try again.', isError: true);
+          if (mounted) {
+            setState(() => _isLoading = false);
+            _showMessage('Failed to delete data. Please try again.', isError: true);
+          }
         }
       },
     ),
   );
 }
+
   // ============================================================
   // البناء الرئيسي
   // ============================================================
@@ -470,6 +505,38 @@ Future<void> _deleteAllData() async {
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: Color(0xFF5235C5)),
+            )
+          : _errorMessage != null
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: const Color(0xFFE76F51),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _errorMessage!,
+                    style: GoogleFonts.manrope(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFFE76F51),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadUserData,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF5235C5),
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
             )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -499,6 +566,18 @@ Future<void> _deleteAllData() async {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
+      actions: [
+        // ✅ زر تحديث البيانات
+        IconButton(
+          onPressed: _isLoading ? null : _loadUserData,
+          icon: Icon(
+            _isLoading ? Icons.hourglass_empty : Icons.refresh,
+            color: const Color(0xFF5235C5),
+            size: 24,
+          ),
+          tooltip: 'Refresh data',
+        ),
+      ],
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -526,7 +605,12 @@ Future<void> _deleteAllData() async {
   // ============================================================
   // User Profile Card
   // ============================================================
-  Widget _buildUserProfile(String fullName, String email, int totalCheckins, double avgScore) {
+  Widget _buildUserProfile(
+    String fullName,
+    String email,
+    int totalCheckins,
+    double avgScore,
+  ) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -600,7 +684,10 @@ Future<void> _deleteAllData() async {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF5235C5).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -616,7 +703,10 @@ Future<void> _deleteAllData() async {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF2D6A4F).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -644,6 +734,18 @@ Future<void> _deleteAllData() async {
   // Stats Card
   // ============================================================
   Widget _buildStatsCard(int totalCheckins, double avgScore) {
+    // ✅ تنسيق تاريخ آخر Check-in
+    String lastCheckin = '--';
+    if (_userData?['last_checkin'] != null) {
+      try {
+        final date = DateTime.parse(_userData!['last_checkin'].toString());
+        lastCheckin = '${date.day}/${date.month}/${date.year}';
+      } catch (_) {
+        lastCheckin =
+            _userData?['last_checkin']?.toString().split('T').first ?? '--';
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -666,26 +768,18 @@ Future<void> _deleteAllData() async {
             value: totalCheckins.toString(),
             color: const Color(0xFF5235C5),
           ),
-          Container(
-            width: 1,
-            height: 40,
-            color: const Color(0xFFE8E8EE),
-          ),
+          Container(width: 1, height: 40, color: const Color(0xFFE8E8EE)),
           _buildStatItem(
             icon: Icons.analytics,
             label: 'Average',
             value: avgScore > 0 ? avgScore.toStringAsFixed(1) : '--',
             color: const Color(0xFF2D6A4F),
           ),
-          Container(
-            width: 1,
-            height: 40,
-            color: const Color(0xFFE8E8EE),
-          ),
+          Container(width: 1, height: 40, color: const Color(0xFFE8E8EE)),
           _buildStatItem(
             icon: Icons.calendar_today,
             label: 'Last',
-            value: _userData?['last_checkin']?.toString().split('-').first ?? '--',
+            value: lastCheckin,
             color: const Color(0xFFF4A261),
           ),
         ],
@@ -768,7 +862,8 @@ Future<void> _deleteAllData() async {
       {
         'icon': Icons.delete_outline,
         'title': 'Delete My Data',
-        'subtitle': 'Remove all your cognitive analysis records and stored data',
+        'subtitle':
+            'Remove all your cognitive analysis records and stored data',
         'color': const Color(0xFFE76F51),
         'onTap': _deleteAllData,
       },
@@ -849,11 +944,7 @@ Future<void> _deleteAllData() async {
                 color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(
-                icon,
-                color: color,
-                size: 20,
-              ),
+              child: Icon(icon, color: color, size: 20),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -880,52 +971,156 @@ Future<void> _deleteAllData() async {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              color: const Color(0xFFB0B0BA),
-              size: 18,
-            ),
+            Icon(Icons.chevron_right, color: const Color(0xFFB0B0BA), size: 18),
           ],
         ),
       ),
     );
   }
 
-  // ============================================================
-  // Danger Zone
-  // ============================================================
-  Widget _buildDangerZone() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE76F51).withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFE76F51).withValues(alpha: 0.15),
-        ),
+// ============================================================
+// Danger Zone - مع دعم Guest Mode
+// ============================================================
+Widget _buildDangerZone() {
+  // ✅ التحقق من حالة Guest
+  final bool isGuest = _userData?['is_guest'] ?? false;
+
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: const Color(0xFFE76F51).withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: const Color(0xFFE76F51).withValues(alpha: 0.15),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.warning_amber_rounded,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: const Color(0xFFE76F51),
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              isGuest ? 'Guest Account' : 'Danger Zone',
+              style: GoogleFonts.manrope(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
                 color: const Color(0xFFE76F51),
-                size: 18,
               ),
-              const SizedBox(width: 8),
-              Text(
-                'Danger Zone',
-                style: GoogleFonts.manrope(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFFE76F51),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ✅ إذا كان Guest، عرض رسالة تحذيرية
+        if (isGuest)
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF4A261).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0xFFF4A261).withValues(alpha: 0.2),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: const Color(0xFFF4A261), size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'You are browsing as Guest. Data will not be saved.',
+                    style: GoogleFonts.manrope(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFFF4A261),
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
+
+        // ✅ زر Logout (يظهر للجميع)
+        GestureDetector(
+          onTap: _logout,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFFE76F51).withValues(alpha: 0.2),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE76F51).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.logout,
+                    color: Color(0xFFE76F51),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isGuest ? 'Exit Guest Mode' : 'Logout',
+                        style: GoogleFonts.manrope(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFE76F51),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isGuest ? 'Return to login screen' : 'Sign out from your account',
+                        style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: const Color(0xFF8A8A9A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_isLoggingOut)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFFE76F51),
+                    ),
+                  )
+                else
+                  Icon(
+                    Icons.chevron_right,
+                    color: const Color(0xFFE76F51),
+                    size: 18,
+                  ),
+              ],
+            ),
+          ),
+        ),
+
+        // ✅ إذا كان Guest، لا يظهر زر "Delete Account"
+        if (!isGuest) ...[
+          const SizedBox(height: 10),
           GestureDetector(
             onTap: _deleteAccount,
             child: Container(
@@ -985,80 +1180,11 @@ Future<void> _deleteAllData() async {
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: _logout,
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFE76F51).withValues(alpha: 0.2),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE76F51).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.logout,
-                      color: Color(0xFFE76F51),
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Logout',
-                          style: GoogleFonts.manrope(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFFE76F51),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Sign out from your account',
-                          style: GoogleFonts.manrope(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                            color: const Color(0xFF8A8A9A),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_isLoggingOut)
-                    const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Color(0xFFE76F51),
-                      ),
-                    )
-                  else
-                    Icon(
-                      Icons.chevron_right,
-                      color: const Color(0xFFE76F51),
-                      size: 18,
-                    ),
-                ],
-              ),
-            ),
-          ),
         ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 
   // ============================================================
   // App Version

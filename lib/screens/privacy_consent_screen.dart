@@ -1,16 +1,17 @@
 // ============================================================
 // 📄 lib/screens/privacy_consent_screen.dart
-// 📌 شاشة الموافقة على الخصوصية - Privacy Consent Screen (محسّنة)
+// 📌 شاشة الموافقة على الخصوصية (تعمل مع/بدون إنترنت)
 // ============================================================
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'initial_questionnaire.dart';
 import '../services/supabase_service.dart';
 import 'terms_screen.dart';
 import 'privacy_policy_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class PrivacyConsentScreen extends StatefulWidget {
   const PrivacyConsentScreen({super.key});
@@ -28,6 +29,7 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
   bool _agreeToNotifications = false;
   bool _isLoading = false;
   String _errorMessage = '';
+  bool _isOnline = true;
 
   final List<Map<String, dynamic>> _privacyItems = [
     {
@@ -68,65 +70,140 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
     },
   ];
 
-// ============================================================
-// حفظ موافقة المستخدم
-// ============================================================
-Future<void> _saveConsent() async {
-  final user = _supabaseService.currentUser;
-  if (user == null) {
-    setState(() {
-      _errorMessage = 'User not found. Please login again.';
-    });
-    return;
+  @override
+  void initState() {
+    super.initState();
+    _checkConnectivity();
   }
 
-  debugPrint('📝 Saving consent for user: ${user.id}');
-  debugPrint('   _agreeToTerms: $_agreeToTerms');
-  debugPrint('   _agreeToDataCollection: $_agreeToDataCollection');
-  debugPrint('   _agreeToResearch: $_agreeToResearch');
-  debugPrint('   _agreeToNotifications: $_agreeToNotifications');
-
-  setState(() {
-    _isLoading = true;
-    _errorMessage = '';
-  });
-
-  try {
-    // ✅ تضمين email في upsert
-    await _supabaseService.client.from('users').upsert({
-      'id': user.id,
-      'email': user.email,  // ✅ أضف هذا السطر
-      'full_name': user.userMetadata?['full_name'] ?? 'User',  // ✅ أضف هذا السطر
-      'parent_consent': _agreeToTerms,
-      'data_collection_consent': _agreeToDataCollection,
-      'research_consent': _agreeToResearch,
-      'notifications_consent': _agreeToNotifications,
+  // ============================================================
+  // ✅ التحقق من حالة الإنترنت
+  // ============================================================
+  Future<void> _checkConnectivity() async {
+    final result = await Connectivity().checkConnectivity();
+    setState(() {
+      _isOnline = result != ConnectivityResult.none;
     });
-    debugPrint('✅ Supabase saved successfully!');
+  }
 
+  // ============================================================
+  // ✅ حفظ موافقة المستخدم (يعمل مع/بدون إنترنت)
+  // ============================================================
+  Future<void> _saveConsent() async {
+    final user = _supabaseService.client.auth.currentUser;
+    
+    await _checkConnectivity();
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    // ✅ حفظ البيانات محلياً (دائماً)
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('hasAcceptedPrivacy', true);
-    debugPrint('✅ SharedPreferences saved successfully!');
+    await prefs.setBool('agreedToTerms', _agreeToTerms);
+    await prefs.setBool('agreedToDataCollection', _agreeToDataCollection);
+    await prefs.setBool('agreedToResearch', _agreeToResearch);
+    await prefs.setBool('agreedToNotifications', _agreeToNotifications);
+    await prefs.setString('privacyConsentDate', DateTime.now().toIso8601String());
+
+    debugPrint('✅ Privacy consent saved locally');
+
+    // ✅ إذا كان هناك إنترنت ومستخدم، نحاول حفظ في Supabase
+    if (_isOnline && user != null) {
+      try {
+        await _supabaseService.client.from('users').upsert({
+          'id': user.id,
+          'email': user.email ?? '',
+          'full_name': user.userMetadata?['full_name'] ?? user.email?.split('@').first ?? 'User',
+          'parent_consent': _agreeToTerms,
+          'data_collection_consent': _agreeToDataCollection,
+          'research_consent': _agreeToResearch,
+          'notifications_consent': _agreeToNotifications,
+          'privacy_consent_date': DateTime.now().toIso8601String(),
+        });
+        
+        debugPrint('✅ Privacy consent saved to Supabase');
+        await _removeFromPendingQueue();
+        
+      } catch (e) {
+        debugPrint('⚠️ Failed to save to Supabase: $e');
+        await _addToPendingQueue();
+        _showMessage('⚠️ Saved locally. Will sync when online.', isError: false);
+      }
+    } else if (!_isOnline) {
+      await _addToPendingQueue();
+      _showMessage('📡 No internet. Saved locally. Will sync when online.', isError: false);
+    }
 
     if (mounted) {
+      setState(() => _isLoading = false);
       debugPrint('➡️ Navigating to Initial Questionnaire');
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const InitialQuestionnaire()),
       );
     }
-  } catch (e) {
-    debugPrint('❌ Error saving consent: $e');
-    setState(() {
-      _errorMessage = 'Failed to save consent: ${e.toString()}';
-      _isLoading = false;
-    });
   }
-}
+
+  // ============================================================
+  // ✅ إضافة إلى قائمة الانتظار
+  // ============================================================
+  Future<void> _addToPendingQueue() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final pending = prefs.getStringList('pending_privacy_consent') ?? [];
+      
+      final consentData = {
+        'agreeToTerms': _agreeToTerms,
+        'agreeToDataCollection': _agreeToDataCollection,
+        'agreeToResearch': _agreeToResearch,
+        'agreeToNotifications': _agreeToNotifications,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      
+      pending.add(consentData.toString());
+      await prefs.setStringList('pending_privacy_consent', pending);
+      debugPrint('📁 Added to pending queue');
+    } catch (e) {
+      debugPrint('❌ Failed to add to pending queue: $e');
+    }
+  }
+
+  // ============================================================
+  // ✅ إزالة من قائمة الانتظار
+  // ============================================================
+  Future<void> _removeFromPendingQueue() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('pending_privacy_consent');
+      debugPrint('🗑️ Removed from pending queue');
+    } catch (e) {
+      debugPrint('❌ Failed to remove from pending queue: $e');
+    }
+  }
+
+  // ============================================================
+  // ✅ عرض رسالة
+  // ============================================================
+  void _showMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? const Color(0xFFE76F51) : const Color(0xFF2D6A4F),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
 
   bool get _allConsentsRequired => 
       _agreeToTerms && _agreeToDataCollection && _agreeToResearch;
 
+  // ============================================================
+  // BUILD
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -147,6 +224,29 @@ Future<void> _saveConsent() async {
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            child: Row(
+              children: [
+                Icon(
+                  _isOnline ? Icons.wifi : Icons.wifi_off,
+                  color: _isOnline ? const Color(0xFF2D6A4F) : const Color(0xFFE76F51),
+                  size: 20,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _isOnline ? 'Online' : 'Offline',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _isOnline ? const Color(0xFF2D6A4F) : const Color(0xFFE76F51),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -157,12 +257,8 @@ Future<void> _saveConsent() async {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ========== الهيدر ==========
                     _buildHeader(),
-
                     const SizedBox(height: 24),
-
-                    // ========== العنوان ==========
                     const Text(
                       'Please read the following carefully:',
                       style: TextStyle(
@@ -171,10 +267,7 @@ Future<void> _saveConsent() async {
                         color: Color(0xFF1A1A2E),
                       ),
                     ).animate().fadeIn(duration: 500.ms, delay: 100.ms).moveY(begin: 20, end: 0),
-
                     const SizedBox(height: 16),
-
-                    // ========== قائمة بنود الخصوصية ==========
                     ..._privacyItems.asMap().entries.map((entry) {
                       final index = entry.key;
                       final item = entry.value;
@@ -183,15 +276,9 @@ Future<void> _saveConsent() async {
                         delay: (150 + index * 50).ms,
                       ).moveY(begin: 15, end: 0);
                     }),
-
                     const SizedBox(height: 24),
-
-                    // ========== تنبيه طبي ==========
                     _buildMedicalDisclaimer(),
-
                     const SizedBox(height: 32),
-
-                    // ========== Checkboxes للموافقات ==========
                     _buildConsentCheckbox(
                       value: _agreeToTerms,
                       onChanged: (value) {
@@ -209,9 +296,7 @@ Future<void> _saveConsent() async {
                       },
                       required: true,
                     ).animate().fadeIn(duration: 400.ms, delay: 600.ms),
-
                     const SizedBox(height: 12),
-
                     _buildConsentCheckbox(
                       value: _agreeToDataCollection,
                       onChanged: (value) {
@@ -222,9 +307,7 @@ Future<void> _saveConsent() async {
                       text: 'I consent to the collection and processing of my data to provide personalized recommendations',
                       required: true,
                     ).animate().fadeIn(duration: 400.ms, delay: 650.ms),
-
                     const SizedBox(height: 12),
-
                     _buildConsentCheckbox(
                       value: _agreeToResearch,
                       onChanged: (value) {
@@ -235,9 +318,7 @@ Future<void> _saveConsent() async {
                       text: 'I agree to allow anonymized data to be used for research purposes to improve AI models',
                       required: true,
                     ).animate().fadeIn(duration: 400.ms, delay: 700.ms),
-
                     const SizedBox(height: 12),
-
                     _buildConsentCheckbox(
                       value: _agreeToNotifications,
                       onChanged: (value) {
@@ -248,16 +329,10 @@ Future<void> _saveConsent() async {
                       text: 'I would like to receive helpful tips and reminders (optional, can be changed later)',
                       required: false,
                     ).animate().fadeIn(duration: 400.ms, delay: 750.ms),
-
                     const SizedBox(height: 32),
-
-                    // ========== رسالة الخطأ ==========
                     if (_errorMessage.isNotEmpty)
                       _buildErrorMessage(),
-
-                    // ========== زر المتابعة ==========
                     _buildContinueButton(),
-
                     const SizedBox(height: 20),
                   ],
                 ),
