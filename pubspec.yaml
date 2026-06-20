@@ -32,9 +32,7 @@ dependencies:
   record: ^5.0.4
   audio_waveforms: ^1.0.4
 
-  # ✅ تشغيل الصوت
 
-  audioplayers: ^6.0.0
 
   # HTTP & APIs
   http: ^1.2.0
@@ -71,6 +69,7 @@ dependencies:
   google_sign_in: ^6.2.0
 
   # font_awesome_flutter: ^10.7.0
+  audioplayers: ^6.1.0
 
 
 
@@ -102,6 +101,15 @@ flutter:
     - assets/images/factor2_icon.png
     - assets/images/33.png
     - assets/images/factor4_icon.png
+
+    - assets/images/help.png
+    - assets/images/undraw_my-answer_au1h.png
+    - assets/images/undraw_time-change_lyxp.png
+    - assets/images/undraw_my-answer_au1h.png
+    - assets/images/undraw_investing_uzcu.png
+
+
+
 
     
 

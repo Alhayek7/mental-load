@@ -1,167 +1,291 @@
 # ============================================================
-# 📄 app.py - خادم Flask مع النماذج الجديدة
+# 📄 app.py - النسخة النهائية مع faster-whisper
+# ✅ تحليل النص + تحويل الصوت إلى نص
 # ============================================================
 
-import os
-import re
-import json
-import random
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from datetime import datetime
 import joblib
 import numpy as np
+import re
+import os
+import tempfile
+import uuid
+from faster_whisper import WhisperModel
+from pydub import AudioSegment
+import time
+import warnings
+warnings.filterwarnings('ignore')
 
 app = Flask(__name__)
 CORS(app)
 
-print('🔄 Loading AI Models...')
+# ============================================================
+# 1. تحميل نموذج تحليل النص
+# ============================================================
 
-# تحميل النماذج باستخدام joblib (أكثر توافقاً)
-try:
-    tfidf = joblib.load('tfidf_vectorizer.joblib')
-    label_encoder = joblib.load('level_label_encoder.joblib')
-    ordinal_encoder = joblib.load('hours_ordinal_encoder.joblib')
-    print('✅ All models loaded successfully!')
-except Exception as e:
-    print(f'⚠️ Joblib loading failed: {e}')
-    print('🔄 Trying pickle fallback...')
-    import pickle
-    with open('tfidf_vectorizer.pkl', 'rb') as f:
-        tfidf = pickle.load(f)
-    with open('level_label_encoder.pkl', 'rb') as f:
-        label_encoder = pickle.load(f)
-    with open('hours_ordinal_encoder.pkl', 'rb') as f:
-        ordinal_encoder = pickle.load(f)
-    print('✅ Models loaded with pickle!')
+print("🔄 Loading AI Models...")
+tfidf = joblib.load('tfidf_vectorizer.joblib')
+model = joblib.load('model.joblib')
+label_encoder = joblib.load('level_label_encoder.joblib')
+print("✅ All models loaded successfully!")
 
-def clean_text(text):
-    text = text.lower()
-    text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
-    text = ' '.join(text.split())
-    return text
+# ============================================================
+# 2. تحميل faster-whisper
+# ============================================================
 
-def analyze_with_models(text):
-    """تحليل النص باستخدام النماذج"""
-    text = clean_text(text)
-    
-    if not text:
-        return {'score': 2, 'category': 'Moderate', 'confidence': 50}
-    
-    # تحويل إلى متجه باستخدام TF-IDF
-    text_vector = tfidf.transform([text])
-    
-    # التنبؤ بالتصنيف
-    try:
-        predicted = label_encoder.inverse_transform(
-            np.argmax(text_vector.toarray(), axis=1)
-        )[0]
-        category = predicted
-    except:
-        # إذا فشل النموذج، استخدم التحليل بالكلمات المفتاحية
-        category = analyze_by_keywords(text)
-    
-    # تحويل الفئة إلى Score
-    if category == 'Low':
-        score = 2
-    elif category == 'Moderate':
-        score = 3
-    else:
-        score = 4
-    
-    # حساب الثقة بناءً على قوة المطابقة
-    confidence = 75 + (len(text) / 50) if len(text) > 20 else 70
-    confidence = min(95, confidence)
-    
+MODEL_SIZE = "base"  # ✅ "tiny", "base", "small", "medium", "large"
+DEVICE = "cpu"       # ✅ "cpu" أو "cuda" (إذا كان لديك GPU)
+
+print(f"\n🔄 Loading faster-whisper model ({MODEL_SIZE})...")
+whisper_model = WhisperModel(MODEL_SIZE, device=DEVICE, compute_type="int8")
+print(f"✅ faster-whisper model loaded successfully!")
+
+# ============================================================
+# 3. دوال معالجة النص (للتحليل)
+# ============================================================
+
+NEGATIVE_WORDS = [
+    'tired', 'exhausted', 'overwhelmed', 'burnout', 'stressed',
+    'headache', 'fatigue', 'drained', 'anxious', 'pressure',
+    "can't focus", 'distracted', 'mental', 'heavy', 'fog'
+]
+
+POSITIVE_WORDS = [
+    'productive', 'focused', 'great', 'energized', 'refreshed',
+    'calm', 'clear', 'motivated', 'sharp', 'efficient'
+]
+
+def extract_features(text):
+    """استخراج ميزات إضافية"""
+    lower = text.lower()
+    words = lower.split()
     return {
-        'score': score,
-        'category': category,
-        'confidence': int(confidence),
-        'mode': 'ai_model'
+        'word_count': len(words),
+        'char_count': len(text),
+        'negative_count': sum(1 for w in NEGATIVE_WORDS if w in lower),
+        'positive_count': sum(1 for w in POSITIVE_WORDS if w in lower),
+        'exclamation_count': text.count('!'),
+        'question_count': text.count('?'),
     }
 
-def analyze_by_keywords(text):
-    """تحليل بالكلمات المفتاحية (بديل للنموذج)"""
-    high_words = ['tired', 'exhausted', 'headache', 'can\'t focus', 'overwhelmed',
-                  'stressed', 'burnout', 'fatigue', 'drained', 'heavy', 'brain fog']
-    low_words = ['productive', 'focused', 'great', 'good', 'energized',
-                 'refreshed', 'calm', 'clear', 'motivated', 'sharp']
-    
-    high_score = sum(1 for word in high_words if word in text)
-    low_score = sum(1 for word in low_words if word in text)
-    
-    if high_score > low_score + 2:
-        return 'High'
-    elif low_score > high_score + 2:
-        return 'Low'
-    else:
-        return 'Moderate'
+def preprocess_text(text):
+    """تطبيع النص"""
+    text = text.lower()
+    text = re.sub(r'[^\w\s]', '', text)
+    text = re.sub(r'\d+', '', text)
+    words = text.split()
+    words = [w for w in words if len(w) > 2]
+    return ' '.join(words)
 
-def generate_recommendation(category, text):
-    """توليد توصية"""
-    recommendations = {
-        'Low': [
-            '🌟 You\'re doing great! Keep up your current habits.',
-            '✅ Excellent cognitive balance! Continue monitoring.'
-        ],
-        'Moderate': [
-            '📊 Moderate cognitive load detected. Consider a short break.',
-            '🧘‍♀️ A 10-minute break could help maintain your focus.'
-        ],
-        'High': [
-            '⚠️ High cognitive load detected. Take a 20-minute break.',
-            '🚨 Reduce AI tools to 1-2 and practice deep breathing.'
-        ]
-    }
-    recs = recommendations.get(category, ['Keep monitoring your cognitive load.'])
-    return random.choice(recs)
+# ============================================================
+# 4. دوال معالجة الصوت (لـ faster-whisper)
+# ============================================================
+
+def convert_to_wav(input_path):
+    """تحويل أي ملف صوتي إلى WAV (16kHz, Mono)"""
+    try:
+        audio = AudioSegment.from_file(input_path)
+        audio = audio.set_channels(1).set_frame_rate(16000)
+        
+        wav_path = input_path.replace('.m4a', '.wav').replace('.mp3', '.wav')
+        if wav_path == input_path:
+            wav_path = input_path + '.wav'
+        
+        audio.export(wav_path, format="wav")
+        return wav_path
+    except Exception as e:
+        print(f"❌ Error converting audio: {e}")
+        return None
+
+def transcribe_audio(audio_path):
+    """تحويل الصوت إلى نص باستخدام faster-whisper"""
+    try:
+        if not audio_path.endswith('.wav'):
+            audio_path = convert_to_wav(audio_path)
+            if audio_path is None:
+                return None, 0, 0
+        
+        print(f"🎤 Transcribing: {audio_path}")
+        
+        start_time = time.time()
+        segments, info = whisper_model.transcribe(
+            audio_path,
+            beam_size=5,
+            language="en",
+            vad_filter=True,
+            vad_parameters=dict(
+                min_silence_duration_ms=500,
+                threshold=0.5,
+            ),
+        )
+        
+        full_text = " ".join([seg.text for seg in segments])
+        end_time = time.time()
+        duration = end_time - start_time
+        
+        # ✅ حذف الملفات المؤقتة
+        try:
+            if audio_path.endswith('.wav') and audio_path != audio_path.replace('.wav', ''):
+                os.remove(audio_path)
+        except:
+            pass
+        
+        return full_text, info.language_probability, duration
+        
+    except Exception as e:
+        print(f"❌ Transcription error: {e}")
+        return None, 0, 0
+
+# ============================================================
+# 5. Endpoints
+# ============================================================
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
         'status': 'healthy',
-        'models': {
-            'tfidf': True,
-            'label_encoder': True,
-            'ordinal_encoder': True
-        },
-        'timestamp': datetime.now().isoformat(),
-        'message': 'AI Server is running successfully'
-    })
+        'model': MODEL_SIZE,
+        'device': DEVICE
+    }), 200
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
+    """تحليل النص"""
     try:
         data = request.get_json()
-        if not data or 'text' not in data:
-            return jsonify({'error': 'No text provided'}), 400
+        text = data.get('text', '')
         
-        text = data['text']
+        if not text or len(text.strip()) < 3:
+            return jsonify({
+                'score': 3,
+                'confidence': 70,
+                'recommendation': 'Please provide more details for better analysis.',
+                'category': 'Moderate',
+                'factors': 'Insufficient data for analysis.'
+            }), 200
         
-        # التحليل بالنماذج
-        result = analyze_with_models(text)
+        processed = preprocess_text(text)
+        X_text = tfidf.transform([processed]).toarray()
+        features = extract_features(text)
+        X_extra = np.array([[features['word_count'], features['char_count'],
+                            features['negative_count'], features['positive_count'],
+                            features['exclamation_count'], features['question_count']]])
+        X = np.hstack([X_text, X_extra])
         
-        # إضافة التوصية
-        result['recommendation'] = generate_recommendation(result['category'], text)
-        result['timestamp'] = datetime.now().isoformat()
+        pred = model.predict(X)[0]
+        level = label_encoder.inverse_transform([pred])[0]
+        proba = model.predict_proba(X)[0]
+        confidence = max(proba) * 100
         
-        return jsonify(result)
+        score_map = {'Low': 2, 'Moderate': 3, 'High': 4, 'Critical': 5}
+        score = score_map.get(level, 3)
+        
+        recommendations = {
+            'Low': "🌟 Excellent! You're managing your cognitive load perfectly!",
+            'Moderate': "📊 Moderate cognitive load. Consider a short break.",
+            'High': "⚠️ High cognitive load. Take a 20-minute break.",
+            'Critical': "🚨 Critical cognitive overload! Rest for 30+ minutes."
+        }
+        
+        return jsonify({
+            'score': score,
+            'confidence': round(confidence, 2),
+            'recommendation': recommendations.get(level, "Keep monitoring your cognitive load."),
+            'category': level,
+            'factors': 'AI model analysis with TF-IDF and Random Forest.',
+            'details': {
+                'word_count': len(text.split()),
+                'sentiment': 'Positive' if score <= 2 else 'Needs Attention'
+            }
+        }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/transcribe', methods=['POST'])
+def transcribe():
+    """تحويل الصوت إلى نص باستخدام faster-whisper"""
+    try:
+        if 'audio' not in request.files:
+            return jsonify({'error': 'No audio file provided'}), 400
+        
+        file = request.files['audio']
+        if file.filename == '':
+            return jsonify({'error': 'Empty filename'}), 400
+        
+        # ✅ حفظ الملف مؤقتاً
+        temp_dir = tempfile.gettempdir()
+        ext = os.path.splitext(file.filename)[1] or '.m4a'
+        temp_path = os.path.join(temp_dir, f"audio_{uuid.uuid4().hex}{ext}")
+        file.save(temp_path)
+        
+        print(f"📁 Saved audio to: {temp_path}")
+        
+        # ✅ تحويل الصوت إلى نص
+        text, confidence, duration = transcribe_audio(temp_path)
+        
+        # ✅ حذف الملف المؤقت
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+        
+        if text:
+            # ✅ حساب الـ Score من النص (باستخدام النموذج الحالي)
+            score_result = analyze_text(text)
+            
+            return jsonify({
+                'success': True,
+                'text': text,
+                'confidence': confidence,
+                'duration': duration,
+                'score': score_result.get('score', 3),
+                'word_count': len(text.split()),
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to transcribe audio'
+            }), 500
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+def analyze_text(text):
+    """تحليل النص (دالة مساعدة)"""
+    try:
+        processed = preprocess_text(text)
+        X_text = tfidf.transform([processed]).toarray()
+        features = extract_features(text)
+        X_extra = np.array([[features['word_count'], features['char_count'],
+                            features['negative_count'], features['positive_count'],
+                            features['exclamation_count'], features['question_count']]])
+        X = np.hstack([X_text, X_extra])
+        
+        pred = model.predict(X)[0]
+        level = label_encoder.inverse_transform([pred])[0]
+        
+        score_map = {'Low': 2, 'Moderate': 3, 'High': 4, 'Critical': 5}
+        score = score_map.get(level, 3)
+        
+        return {'score': score, 'level': level}
+    except:
+        return {'score': 3, 'level': 'Moderate'}
+
+# ============================================================
+# 6. تشغيل الخادم
+# ============================================================
+
 if __name__ == '__main__':
-    print('''
-╔══════════════════════════════════════════════════════════════╗
-║                                                              ║
-║   🚀 ClearLoad AI Server (Production)                       ║
-║   📍 Running on http://localhost:5000                      ║
-║   📊 Models: TF-IDF + Label Encoder + Ordinal Encoder      ║
-║                                                              ║
-║   📌 Endpoints:                                             ║
-║   • /health    → Check server status                       ║
-║   • /analyze   → Analyze text (POST)                       ║
-║                                                              ║
-╚══════════════════════════════════════════════════════════════╝
-    ''')
+    print("\n" + "=" * 60)
+    print("   🚀 ClearLoad AI Server")
+    print("   📍 Running on http://localhost:5000")
+    print("   📊 Model: faster-whisper + TF-IDF + Random Forest")
+    print("   📌 Endpoints:")
+    print("   • POST /analyze     → Analyze text")
+    print("   • POST /transcribe  → Convert audio to text")
+    print("   • GET  /health      → Check server status")
+    print("=" * 60)
     app.run(host='0.0.0.0', port=5000, debug=True)
