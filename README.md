@@ -82,15 +82,15 @@ mental-load/
 <table>
 <tr>
 <td align="center" width="33%">
-<img src="assets/screenshots/splash_screen.png" width="220" alt="Splash Screen"/><br/>
+<img src="assets/screenshots/splash_screen.jpeg" width="220" alt="Splash Screen"/><br/>
 <b>Splash Screen</b>
 </td>
 <td align="center" width="33%">
-<img src="assets/screenshots/onboarding_screen.png" width="220" alt="Onboarding Screen"/><br/>
+<img src="assets/screenshots/onboarding_screen.jpeg" width="220" alt="Onboarding Screen"/><br/>
 <b>Onboarding</b>
 </td>
 <td align="center" width="33%">
-<img src="assets/screenshots/login_screen.png" width="220" alt="Login Screen"/><br/>
+<img src="assets/screenshots/login_screen.jpeg" width="220" alt="Login Screen"/><br/>
 <b>Login</b>
 </td>
 </tr>
