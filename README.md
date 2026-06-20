@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/icons/logo.jpeg" alt="Mental Load Logo" width="110"/>
+<img src="assets/icons/logo.png" alt="Mental Load Logo" width="110"/>
 
 # 🧠 Mental Load
 ### Understand Your Mental Load
