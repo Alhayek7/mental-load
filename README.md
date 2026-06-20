@@ -124,7 +124,7 @@ mental-load/
 <b>Patterns</b>
 </td>
 <td align="center" width="33%">
-<img src="assets/screenshots/analytics_screen.png" width="220" alt="Analytics Screen"/><br/>
+<img src="assets/screenshots/analytics_screen.jpg" width="220" alt="Analytics Screen"/><br/>
 <b>Analytics</b>
 </td>
 <td align="center" width="33%">
