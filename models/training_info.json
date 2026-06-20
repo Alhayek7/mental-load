@@ -1,0 +1,14 @@
+{
+  "model_type": "LogisticRegression",
+  "accuracy": 1.0,
+  "samples": 8,
+  "classes": [
+    "Critical",
+    "High",
+    "Low",
+    "Moderate"
+  ],
+  "feature_count": 147,
+  "training_date": "2026-06-19T17:05:22.943500",
+  "features_extracted": 174
+}

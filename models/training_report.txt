@@ -1,0 +1,25 @@
+
+    ============================================================
+    📊 ClearLoad - Model Training Report
+    ============================================================
+    
+    📅 Training Date: 2026-06-19 17:05:22
+    
+    📊 Data Statistics:
+    - Total samples: 8
+    - Classes: ['Critical', 'High', 'Low', 'Moderate']
+    - Class distribution: {'Low': 3, 'High': 2, 'Moderate': 2, 'Critical': 1}
+    
+    🧠 Model Information:
+    - Model type: LogisticRegression
+    - Accuracy: 100.00%
+    - Features: 174
+    
+    📁 Saved Files:
+    - tfidf_vectorizer.joblib
+    - model.joblib
+    - level_label_encoder.joblib
+    - scaler.joblib
+    
+    ============================================================
+    

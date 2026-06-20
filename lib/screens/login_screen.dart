@@ -32,15 +32,14 @@ class _LoginScreenState extends State<LoginScreen> {
   String _errorMessage = '';
   final supabaseService = SupabaseService();
 
-  @override
-  void initState() {
-    super.initState();
-    // ✅ بيانات تجريبية لتسهيل التحقق من التطبيق (لجنة التقييم / الاختبار)
-    // تبقى مقصودة بناءً على طلب المطوّر - لا تُحذف إلا عند النشر التجاري الفعلي
-    _userNameController.text = 'aalhayek7@smail.ucas.edu.ps';
-    _passwordController.text = '123456';
-    _checkIfLoggedIn();
-  }
+@override
+void initState() {
+  super.initState();
+  // ✅ بيانات تجريبية لتسهيل التحقق من التطبيق
+  // _userNameController.text = 'aalhayek7@smail.ucas.edu.ps';
+  // _passwordController.text = '123456';
+  _checkIfLoggedIn();
+}
 
   @override
   void dispose() {
@@ -129,48 +128,40 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ============================================================
-  // ✅ تسجيل الدخول بـ Email/Password
-  // ============================================================
-  Future<void> _login() async {
-    if (_isLoading) return; // ✅ منع الضغط المتكرر
+// ============================================================
+// ✅ تسجيل الدخول بـ Email/Password (يعمل لأي حساب)
+// ============================================================
+Future<void> _login() async {
+  if (_isLoading) return;
 
-    final email = _userNameController.text.trim();
-    final password = _passwordController.text.trim();
+  final email = _userNameController.text.trim();
+  final password = _passwordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
-      setState(() {
-        _errorMessage = 'Please enter both email and password';
-      });
-      return;
-    }
-
+  if (email.isEmpty || password.isEmpty) {
     setState(() {
-      _isLoading = true;
-      _errorMessage = '';
+      _errorMessage = 'Please enter both email and password';
     });
+    return;
+  }
 
-    try {
-      final response = await supabaseService.signIn(email, password);
+  setState(() {
+    _isLoading = true;
+    _errorMessage = '';
+  });
 
-      if (response.user != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('loggedInUser', email);
+  try {
+    final response = await supabaseService.signIn(email, password);
 
-        if (mounted) {
-          await _navigateBasedOnStatus();
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _errorMessage = 'Invalid email or password';
-          });
-        }
+    if (response.user != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setBool('isGuest', false);
+      await prefs.setString('loggedInUser', email);
+
+      if (mounted) {
+        await _navigateBasedOnStatus();
       }
-    } catch (e) {
-      debugPrint('🔥 Login error: $e');
+    } else {
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -178,7 +169,16 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
+  } catch (e) {
+    debugPrint('🔥 Login error: $e');
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Invalid email or password';
+      });
+    }
   }
+}
 
   // ============================================================
   // ✅ تسجيل الدخول عبر Facebook (للعرض التوضيحي فقط - Demo)
@@ -288,48 +288,102 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ============================================================
-  // ✅ تسجيل الدخول كـ Guest
-  // ============================================================
-  Future<void> _loginAsGuest() async {
-    if (_isLoading) return;
+// ============================================================
+// ✅ تسجيل الدخول كـ "ضيف" (بحساب حقيقي لتجربة سلسة للجنة التحكيم)
+// ============================================================
+Future<void> _loginAsGuest() async {
+  if (_isLoading) return;
 
-    setState(() => _isLoading = true);
+  setState(() {
+    _isLoading = true;
+    _errorMessage = '';
+  });
 
-    try {
-      await Future.delayed(const Duration(milliseconds: 600));
+  // ✅ حساب حقيقي مُعدّ مسبقاً للجنة التحكيم
+  const guestEmail = 'aalhayek7@smail.ucas.edu.ps';
+  const guestPassword = '123456';
+
+  try {
+    // ✅ تعبئة الحقول (للمظهر فقط)
+    _userNameController.text = guestEmail;
+    _passwordController.text = guestPassword;
+
+    // ✅ محاولة تسجيل الدخول إلى Supabase
+    final response = await supabaseService.signIn(guestEmail, guestPassword);
+
+    if (response.user != null) {
+      // ✅ تم تسجيل الدخول بنجاح
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setBool('isGuest', false); // ليس ضيفاً، بل حساب حقيقي
+      await prefs.setString('loggedInUser', guestEmail);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('⚠️ You are in Guest mode. Data will not be saved.'),
-            backgroundColor: Color(0xFFF4A261),
-            duration: Duration(seconds: 3),
+            content: Text('✅ Logged in successfully as Demo User'),
+            backgroundColor: Color(0xFF2D6A4F),
+            duration: Duration(seconds: 2),
           ),
         );
-      }
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('isLoggedIn', true);
-      await prefs.setBool('isGuest', true);
-      await prefs.setBool('hasSeenOnboarding', true);
-      await prefs.setBool('hasAcceptedPrivacy', true);
-      await prefs.setBool('hasCompletedQuestionnaire', true);
-      await prefs.setString('loggedInUser', 'Guest');
-
-      if (mounted) {
         await _navigateBasedOnStatus();
       }
-    } catch (e) {
-      debugPrint('⚠️ Guest login failed: $e');
+    } else {
+      // ❌ في حال فشل تسجيل الدخول (مثلاً الحساب غير موجود)
+      await _createGuestAccount(); // نحاول إنشاؤه
+    }
+  } catch (e) {
+    debugPrint('⚠️ Guest login failed: $e');
+    // ✅ في حال فشل تسجيل الدخول بسبب عدم وجود إنترنت أو الحساب
+    await _createGuestAccount();
+  }
+}
+
+// ============================================================
+// ✅ إنشاء حساب الضيف تلقائياً إذا لم يكن موجوداً
+// ============================================================
+Future<void> _createGuestAccount() async {
+  try {
+    const guestEmail = 'aalhayek7@smail.ucas.edu.ps';
+    const guestPassword = '123456';
+
+    // ✅ إنشاء الحساب في Supabase
+    await supabaseService.signUp(
+      email: guestEmail,
+      password: guestPassword,
+      fullName: 'Demo User (Judge Account)',
+    );
+
+    // ✅ بعد الإنشاء، نسجل الدخول تلقائياً
+    final response = await supabaseService.signIn(guestEmail, guestPassword);
+
+    if (response.user != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setBool('isGuest', false);
+      await prefs.setString('loggedInUser', guestEmail);
+
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'Something went wrong. Please try again.';
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Demo account created and logged in!'),
+            backgroundColor: Color(0xFF2D6A4F),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        await _navigateBasedOnStatus();
       }
     }
+  } catch (e) {
+    debugPrint('⚠️ Guest account creation failed: $e');
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Could not create demo account. Please try again.';
+      });
+    }
   }
+}
 
   // ============================================================
   // ✅ بناء واجهة المستخدم

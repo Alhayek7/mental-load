@@ -1,6 +1,6 @@
 // ============================================================
 // 📄 lib/widgets/delete_data_dialog.dart
-// 📌 نافذة حذف البيانات - Delete Data Dialog
+// 📌 نافذة حذف البيانات - Delete Data Dialog (محسّنة)
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -29,25 +29,25 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
       'icon': Icons.analytics_outlined,
       'title': 'Cognitive Load Scores',
       'description': 'All your analysis results and patterns',
-      'color': Color(0xFF5235C5),
+      'color': const Color(0xFF5235C5),
     },
     {
       'icon': Icons.history_outlined,
       'title': 'Check-in History',
       'description': 'All your daily reflections and records',
-      'color': Color(0xFF1A5F7A),
+      'color': const Color(0xFF1A5F7A),
     },
     {
       'icon': Icons.recommend_outlined,
       'title': 'Recommendations',
       'description': 'All personalized suggestions and insights',
-      'color': Color(0xFF2D6A4F),
+      'color': const Color(0xFF2D6A4F),
     },
     {
       'icon': Icons.person_outline,
       'title': 'Profile Information',
       'description': 'Your name, email, and preferences',
-      'color': Color(0xFFF4A261),
+      'color': const Color(0xFFF4A261),
     },
   ];
 
@@ -59,6 +59,7 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
       backgroundColor: Colors.transparent,
       child: ConstrainedBox(
         constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.9,
           maxHeight: MediaQuery.of(context).size.height * 0.85,
         ),
         child: Container(
@@ -80,49 +81,46 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
               ),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ============================================================
-              // Header
-              // ============================================================
-              _buildHeader(),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ============================================================
+                // Header
+                // ============================================================
+                _buildHeader(),
+                const SizedBox(height: 16),
 
-              const SizedBox(height: 16),
+                // ============================================================
+                // Warning Icon
+                // ============================================================
+                _buildWarningIcon(),
+                const SizedBox(height: 16),
 
-              // ============================================================
-              // Warning Icon
-              // ============================================================
-              _buildWarningIcon(),
+                // ============================================================
+                // Description
+                // ============================================================
+                _buildDescription(),
+                const SizedBox(height: 16),
 
-              const SizedBox(height: 16),
+                // ============================================================
+                // Data Items
+                // ============================================================
+                _buildDataItems(),
+                const SizedBox(height: 16),
 
-              // ============================================================
-              // Description
-              // ============================================================
-              _buildDescription(),
+                // ============================================================
+                // Confirmation
+                // ============================================================
+                _buildConfirmation(),
+                const SizedBox(height: 20),
 
-              const SizedBox(height: 16),
-
-              // ============================================================
-              // Data Items
-              // ============================================================
-              _buildDataItems(),
-
-              const SizedBox(height: 16),
-
-              // ============================================================
-              // Confirmation
-              // ============================================================
-              _buildConfirmation(),
-
-              const SizedBox(height: 20),
-
-              // ============================================================
-              // Buttons
-              // ============================================================
-              _buildButtons(),
-            ],
+                // ============================================================
+                // Buttons
+                // ============================================================
+                _buildButtons(),
+              ],
+            ),
           ),
         ),
       ),
@@ -224,7 +222,7 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
   }
 
   // ============================================================
-  // Description
+  // Description (محسّنة)
   // ============================================================
   Widget _buildDescription() {
     return Container(
@@ -257,6 +255,7 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
             },
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min, // ✅ منع التجاوز
               children: [
                 Text(
                   _showDetails ? 'Hide details' : 'Show details',
@@ -283,7 +282,7 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
   }
 
   // ============================================================
-  // Data Items
+  // Data Items (محسّنة)
   // ============================================================
   Widget _buildDataItems() {
     if (!_showDetails) return const SizedBox();
@@ -300,15 +299,14 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
         ),
         child: Column(
           children: _dataItems.map((item) {
+            final index = _dataItems.indexOf(item);
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
                     color: const Color(0xFFE8E8EE),
-                    width: _dataItems.indexOf(item) == _dataItems.length - 1
-                        ? 0
-                        : 1,
+                    width: index == _dataItems.length - 1 ? 0 : 1,
                   ),
                 ),
               ),
@@ -338,6 +336,8 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
                             fontWeight: FontWeight.w600,
                             color: const Color(0xFF1A1A2E),
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         Text(
                           item['description'] as String,
@@ -346,6 +346,8 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
                             fontWeight: FontWeight.w400,
                             color: const Color(0xFF8A8A9A),
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -365,7 +367,7 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
   }
 
   // ============================================================
-  // Confirmation
+  // Confirmation (محسّنة)
   // ============================================================
   Widget _buildConfirmation() {
     return GestureDetector(
@@ -418,6 +420,8 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
                       ? const Color(0xFF1A1A2E)
                       : const Color(0xFF8A8A9A),
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -426,92 +430,99 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
     );
   }
 
-  // ============================================================
-  // Buttons
-  // ============================================================
-  Widget _buildButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: widget.isLoading ? null : () => Navigator.pop(context),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F8),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE8E8EE), width: 1),
-              ),
-              child: Center(
-                child: Text(
-                  'Cancel',
-                  style: GoogleFonts.manrope(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF8A8A9A),
-                  ),
+ // ============================================================
+// Buttons (الحل النهائي - إزالة Row المؤدي للمشكلة)
+// ============================================================
+Widget _buildButtons() {
+  return Row(
+    children: [
+      // ✅ زر Cancel
+      Expanded(
+        flex: 1,
+        child: GestureDetector(
+          onTap: widget.isLoading ? null : () => Navigator.pop(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F8),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE8E8EE), width: 1),
+            ),
+            child: Center(
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.manrope(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF8A8A9A),
                 ),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: GestureDetector(
-            onTap: (_isConfirmed && !widget.isLoading)
-                ? widget.onConfirm
-                : null,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                gradient: (!_isConfirmed || widget.isLoading)
-                    ? LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          const Color(0xFFB0B0BA),
-                          const Color(0xFF8A8A9A),
-                        ],
-                      )
-                    : LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          const Color(0xFFE76F51),
-                          const Color(0xFFFF6B6B),
-                        ],
-                      ),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: (!_isConfirmed || widget.isLoading)
-                    ? null
-                    : [
-                        BoxShadow(
-                          color: const Color(0xFFE76F51).withValues(alpha: 0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
+      ),
+      const SizedBox(width: 12),
+
+      // ✅ زر Delete (مبسط - بدون Row إضافي)
+      Expanded(
+        flex: 1,
+        child: GestureDetector(
+          onTap: (_isConfirmed && !widget.isLoading)
+              ? widget.onConfirm
+              : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              gradient: (!_isConfirmed || widget.isLoading)
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFFB0B0BA),
+                        const Color(0xFF8A8A9A),
                       ],
-              ),
-              child: Center(
-                child: widget.isLoading
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
+                    )
+                  : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFFE76F51),
+                        const Color(0xFFFF6B6B),
+                      ],
+                    ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: (!_isConfirmed || widget.isLoading)
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: const Color(0xFFE76F51).withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+            ),
+            child: Center(
+              child: widget.isLoading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.delete_outline_rounded,
                           color: Colors.white,
+                          size: 18,
                         ),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.delete_outline_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
+                        const SizedBox(width: 8),
+                        Flexible( // ✅ استخدام Flexible بدلاً من Text مباشرة
+                          child: Text(
                             'Delete All Data',
                             style: GoogleFonts.manrope(
                               fontSize: 15,
@@ -520,14 +531,17 @@ class _DeleteDataDialogState extends State<DeleteDataDialog> {
                                   ? Colors.white.withValues(alpha: 0.5)
                                   : Colors.white,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ],
-                      ),
-              ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 }

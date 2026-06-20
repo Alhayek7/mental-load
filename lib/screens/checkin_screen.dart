@@ -5,14 +5,16 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+// import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../services/supabase_service.dart';
 import '../services/ai_service.dart';
 import '../services/audio_service.dart';
 import '../services/transcription_service.dart';
 import '../services/key_service.dart'; // ✅ استيراد واحد فقط
 import 'result_screen.dart';
-import '../services/google_stt_service.dart';
+// import '../services/google_stt_service.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'dart:io';
 
 class CheckinScreen extends StatefulWidget {
   const CheckinScreen({super.key});
@@ -25,14 +27,15 @@ class _CheckinScreenState extends State<CheckinScreen> {
   final SupabaseService _supabaseService = SupabaseService();
   final AIService _aiService = AIService();
   final AudioService _audioService = AudioService();
-  // final TranscriptionService _transcriptionService = TranscriptionService();
-  final KeyService _keyService = KeyService();
   final TextEditingController _textController = TextEditingController();
-  final GoogleSTTService _googleSTT = GoogleSTTService();
+  final TranscriptionService _transcriptionService = TranscriptionService();
+  final KeyService _keyService = KeyService();
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   int _currentPage = 0;
   bool _isLoading = false;
   bool _isTranscribing = false;
+  bool _isPlayingRecording = false;
   String? _audioPath;
 
   // Page 1
@@ -51,8 +54,15 @@ class _CheckinScreenState extends State<CheckinScreen> {
 
   @override
   void dispose() {
+    _audioPlayer.dispose();
+
+    // ✅ إيقاف التسجيل وتنظيف الموارد
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _audioService.stopRecording();
+      _audioService.dispose();
+    });
+
     _textController.dispose();
-    _audioService.dispose();
     super.dispose();
   }
 
@@ -78,145 +88,118 @@ class _CheckinScreenState extends State<CheckinScreen> {
 
   Future<void> _stopRecording() async {
     final path = await _audioService.stopRecording();
-    setState(() {
-      _isRecording = false;
-    });
+    setState(() => _isRecording = false);
 
     if (path != null) {
       _audioPath = path;
       _showSnack('📁 Recording saved! Converting to text...', isError: false);
-      await _transcribeAudio(path);
+      await _transcribeAudio(path); // ✅ استدعاء التحويل
     } else {
       _showSnack('❌ Failed to save recording', isError: true);
     }
   }
 
-  // ✅ دالة تحويل الصوت إلى نص (محدثة)
-Future<void> _transcribeAudio(String path) async {
-  setState(() => _isTranscribing = true);
-  
+// ✅ تشغيل/إيقاف التسجيل الحالي
+Future<void> _togglePlayback() async {
+  if (_audioPath == null) {
+    _showSnack('⚠️ No recording to play', isError: true);
+    return;
+  }
+
+  final file = File(_audioPath!); // ✅ الآن يعمل لأن dart:io مستورد
+  if (!await file.exists()) {
+    _showSnack('⚠️ Recording file not found', isError: true);
+    return;
+  }
+
+  // ✅ إذا كان يعمل حالياً، أوقفه
+  if (_isPlayingRecording) {
+    await _audioPlayer.stop();
+    setState(() => _isPlayingRecording = false);
+    return;
+  }
+
+  // ✅ تشغيل الملف
   try {
-    final text = await _googleSTT.transcribeAudio(path);
+    setState(() => _isPlayingRecording = true);
+    await _audioPlayer.play(DeviceFileSource(_audioPath!));
     
-    if (mounted) {
-      setState(() => _isTranscribing = false);
-      
-      if (text != null && text.isNotEmpty) {
-        setState(() {
-          _freeText = text;
-          _textController.text = text;
-        });
-        _showSnack('✅ Voice converted to text successfully!', isError: false);
-      } else {
-        _showSnack('⚠️ No text detected. Please try again.', isError: false);
+    // ✅ عند انتهاء التشغيل تلقائياً
+    _audioPlayer.onPlayerComplete.listen((event) {
+      if (mounted) {
+        setState(() => _isPlayingRecording = false);
       }
-    }
+    });
+    
+    _showSnack('🎧 Playing recording...', isError: false);
   } catch (e) {
-    debugPrint('❌ Google STT error: $e');
-    if (mounted) {
-      setState(() => _isTranscribing = false);
-      _showSnack('❌ Failed to convert voice', isError: true);
-    }
+    setState(() => _isPlayingRecording = false);
+    _showSnack('❌ Failed to play recording', isError: true);
   }
 }
 
-  // ✅ عرض مربع حوار لإدخال API Key
-  void _showApiKeyDialog() {
-    final TextEditingController keyController =
-        TextEditingController(); // ✅ بدون _
+  Future<void> _transcribeAudio(String path) async {
+    setState(() => _isTranscribing = true);
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.key, color: Color(0xFF5E35B1)),
-            SizedBox(width: 10),
-            Text('Enter OpenAI API Key'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Please enter your OpenAI API Key to enable voice-to-text transcription.',
-              style: TextStyle(fontSize: 14, color: Color(0xFF6B6B7A)),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: keyController,
-              obscureText: true,
-              decoration: InputDecoration(
-                hintText: 'sk-...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFFE8E8EE)),
-                ),
-                filled: true,
-                fillColor: const Color(0xFFF8F7FF),
-                prefixIcon: const Icon(
-                  Icons.lock_outline,
-                  color: Color(0xFF5E35B1),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Your key is stored securely on your device.',
-              style: TextStyle(fontSize: 12, color: const Color(0xFF8A8A9A)),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              if (mounted) {
-                setState(() => _isTranscribing = false);
-              }
-            },
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Color(0xFF8A8A9A)),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final key = keyController.text.trim();
-              if (key.isNotEmpty && key.startsWith('sk-')) {
-                await _keyService.saveOpenAIKey(key);
-                if (mounted) {
-                  Navigator.pop(context);
-                  setState(() => _isTranscribing = false);
-                  _showSnack('✅ API Key saved securely!', isError: false);
+    try {
+      // ✅ جلب API Key
+      final apiKey = await _keyService.getOpenAIKey();
 
-                  if (_audioPath != null && mounted) {
-                    await _transcribeAudio(_audioPath!);
-                  }
-                }
-              } else {
-                if (mounted) {
-                  _showSnack(
-                    '⚠️ Please enter a valid API Key (starts with sk-)',
-                    isError: true,
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF5E35B1),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text('Save Key'),
-          ),
-        ],
-      ),
-    );
+      // ✅ إذا كان المفتاح null أو فارغاً، استخدم المفتاح التجريبي
+      String? finalKey = apiKey;
+      if (finalKey == null || finalKey.isEmpty) {
+        // ✅ استخدام المفتاح التجريبي
+        finalKey = 'sk-proj-demo-key-123456789'; // ⚠️ استبدل بمفتاح حقيقي
+        _showSnack(
+          '⚠️ Using demo key. For production, add your own key.',
+          isError: false,
+        );
+      }
+
+      // ✅ التحقق من أن المفتاح ليس null
+      if (finalKey == null) {
+        if (mounted) {
+          setState(() => _isTranscribing = false);
+          _showSnack('❌ No API key available', isError: true);
+        }
+        return;
+      }
+
+      // ✅ استخدام Whisper API
+      final text = await _transcriptionService.transcribeAudio(
+        audioPath: path,
+        apiKey: finalKey, // ✅ الآن هو String وليس String?
+        language: 'ar',
+        onProgress: () {
+          if (mounted) setState(() {});
+        },
+        onRetry: () {
+          if (mounted) {
+            _showSnack('🔄 Retrying transcription...', isError: false);
+          }
+        },
+      );
+
+      if (mounted) {
+        setState(() => _isTranscribing = false);
+
+        if (text != null && text.isNotEmpty) {
+          setState(() {
+            _freeText = text;
+            _textController.text = text;
+          });
+          _showSnack('✅ Voice converted to text successfully!', isError: false);
+        } else {
+          _showSnack('⚠️ No text detected. Please try again.', isError: false);
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Transcription error: $e');
+      if (mounted) {
+        setState(() => _isTranscribing = false);
+        _showSnack('❌ Failed to convert voice: ${e.toString()}', isError: true);
+      }
+    }
   }
 
   // ============================================================
@@ -404,6 +387,98 @@ Future<void> _transcribeAudio(String path) async {
     );
   }
 
+  void _showApiKeyDialog() {
+    final TextEditingController keyController = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.key, color: Color(0xFF5E35B1)),
+            SizedBox(width: 10),
+            Text('Enter OpenAI API Key'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Please enter your OpenAI API Key to enable voice-to-text transcription.',
+              style: TextStyle(fontSize: 14, color: Color(0xFF6B6B7A)),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: keyController,
+              obscureText: true,
+              decoration: InputDecoration(
+                hintText: 'sk-...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: const Color(0xFFF8F7FF),
+                prefixIcon: const Icon(
+                  Icons.lock_outline,
+                  color: Color(0xFF5E35B1),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your key is stored securely on your device.',
+              style: TextStyle(fontSize: 12, color: const Color(0xFF8A8A9A)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (mounted) {
+                setState(() => _isTranscribing = false);
+              }
+            },
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final key = keyController.text.trim();
+              if (key.isNotEmpty && key.startsWith('sk-')) {
+                await _keyService.saveOpenAIKey(key);
+                if (mounted) {
+                  Navigator.pop(context);
+                  _showSnack('✅ API Key saved securely!', isError: false);
+
+                  if (_audioPath != null && mounted) {
+                    await _transcribeAudio(_audioPath!);
+                  }
+                }
+              } else {
+                if (mounted) {
+                  _showSnack(
+                    '⚠️ Please enter a valid API Key (starts with sk-)',
+                    isError: true,
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF5E35B1),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Save Key'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ============================================================
   // Build
   // ============================================================
@@ -499,6 +574,7 @@ Future<void> _transcribeAudio(String path) async {
             ),
           ),
           const SizedBox(height: 16),
+
           // TextField
           Container(
             height: 150,
@@ -530,6 +606,91 @@ Future<void> _transcribeAudio(String path) async {
               ),
             ),
           ),
+
+          const SizedBox(height: 16),
+
+          // ✅ زر الاستماع للتسجيل (يظهر فقط إذا كان هناك تسجيل)
+          if (_audioPath != null)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF5235C5).withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: const Color(0xFF5235C5).withValues(alpha: 0.15),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.audiotrack, color: Color(0xFF5235C5)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Recording Available',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1A1A2E),
+                          ),
+                        ),
+                        Text(
+                          'Listen to your recording',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: const Color(0xFF8A8A9A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _togglePlayback,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: _isPlayingRecording
+                              ? [
+                                  const Color(0xFFE76F51),
+                                  const Color(0xFFFF6B6B),
+                                ]
+                              : [
+                                  const Color(0xFF5235C5),
+                                  const Color(0xFF7B2CBF),
+                                ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _isPlayingRecording ? Icons.stop : Icons.play_arrow,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _isPlayingRecording ? 'Stop' : 'Play',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           const SizedBox(height: 16),
 
           // ============================================================
@@ -546,15 +707,17 @@ Future<void> _transcribeAudio(String path) async {
             ),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   flex: 1,
                   child: Text(
                     'Record your voice instead',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF1A1A2E),
                     ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -585,6 +748,7 @@ Future<void> _transcribeAudio(String path) async {
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           if (_isTranscribing)
                             const SizedBox(
@@ -602,16 +766,20 @@ Future<void> _transcribeAudio(String path) async {
                               size: 18,
                             ),
                           const SizedBox(width: 6),
-                          Text(
-                            _isTranscribing
-                                ? 'Converting...'
-                                : _isRecording
-                                ? 'Stop'
-                                : 'Record',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                          Flexible(
+                            child: Text(
+                              _isTranscribing
+                                  ? 'Converting...'
+                                  : _isRecording
+                                  ? 'Stop'
+                                  : 'Record',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
                           ),
                         ],
@@ -622,6 +790,7 @@ Future<void> _transcribeAudio(String path) async {
               ],
             ),
           ),
+
           if (_isRecording)
             const Padding(
               padding: EdgeInsets.only(top: 8),

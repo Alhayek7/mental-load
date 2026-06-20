@@ -9,6 +9,9 @@ class KeyService {
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
+  // ✅ المفتاح التجريبي (يمكن تغييره)
+  static const String _demoApiKey = 'sk-proj-demo-key-123456789'; // ⚠️ استبدل بمفتاح حقيقي
+
   // ✅ تخزين API Key
   Future<void> saveOpenAIKey(String key) async {
     try {
@@ -19,15 +22,25 @@ class KeyService {
     }
   }
 
-  // ✅ استرجاع API Key
+  // ✅ استرجاع API Key (مع دعم المفتاح التجريبي)
   Future<String?> getOpenAIKey() async {
     try {
+      // ✅ أولاً: حاول جلب المفتاح من التخزين الآمن
       final key = await _storage.read(key: 'openai_api_key');
-      debugPrint('🔑 OpenAI API Key retrieved: ${key != null ? 'Yes' : 'No'}');
-      return key;
+      
+      // ✅ إذا كان هناك مفتاح، استخدمه
+      if (key != null && key.isNotEmpty) {
+        debugPrint('🔑 OpenAI API Key retrieved from storage');
+        return key;
+      }
+      
+      // ✅ إذا لم يوجد مفتاح، استخدم المفتاح التجريبي
+      debugPrint('🔑 Using demo API key');
+      return _demoApiKey;
+      
     } catch (e) {
       debugPrint('❌ Failed to retrieve API Key: $e');
-      return null;
+      return _demoApiKey; // ✅ في حالة الخطأ، استخدم المفتاح التجريبي
     }
   }
 
@@ -85,5 +98,11 @@ class KeyService {
     } catch (e) {
       debugPrint('❌ Failed to clear keys: $e');
     }
+  }
+
+  // ✅ تعيين مفتاح تجريبي جديد (للاختبار)
+  Future<void> setDemoKey(String key) async {
+    await saveOpenAIKey(key);
+    debugPrint('✅ Demo key set: ${key.substring(0, 10)}...');
   }
 }

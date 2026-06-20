@@ -1,12 +1,11 @@
 // ============================================================
 // 📄 lib/services/transcription_service.dart
-// 📌 خدمة تحويل الصوت إلى نص - Transcription Service
-// ✅ النسخة المحسّنة - جميع المشاكل محلولة
+// 📌 خدمة تحويل الصوت إلى نص - النسخة النهائية الاحترافية
+// ✅ دعم Offline + Retry + معالجة الملفات الكبيرة
 // ============================================================
 
 import 'dart:io';
 import 'dart:async';
-// ✅ إزالة 'dart:convert' لأنه غير مستخدم
 import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,14 +28,25 @@ class TranscriptionService {
   static const String _whisperEndpoint = 'https://api.openai.com/v1/audio/transcriptions';
   static const String _pendingKey = 'pending_transcriptions';
   
+  // ✅ إعدادات Retry المحسّنة
+  static const int _maxRetries = 3;
+  static const Duration _retryDelay = Duration(seconds: 2);
+  static const Duration _timeout = Duration(seconds: 45); // ✅ زيادة المهلة للصوت الطويل
+  
+  // ✅ الحد الأقصى لحجم الملف (25MB)
+  static const int _maxFileSize = 25 * 1024 * 1024;
+  
+  // ✅ إحصائيات الأداء
+  int _totalTranscriptions = 0;
+  int _successfulTranscriptions = 0;
+  int _failedTranscriptions = 0;
+
   // ============================================================
   // 3. Getters
   // ============================================================
   Future<bool> get isConnected async {
     try {
-      // ✅ استخدام الطريقة الصحيحة للتحقق من الاتصال
       final result = await Connectivity().checkConnectivity();
-      // ✅ نتيجة checkConnectivity هي List<ConnectivityResult>
       return result.any((element) => element != ConnectivityResult.none);
     } catch (e) {
       debugPrint('❌ Connectivity check error: $e');
@@ -45,18 +55,30 @@ class TranscriptionService {
   }
 
   // ============================================================
-  // 4. تحويل الصوت إلى نص (مع Whisper API)
+  // 4. تحويل الصوت إلى نص (مع Retry محسّن)
   // ============================================================
   Future<String?> transcribeAudio({
     required String audioPath,
     required String apiKey,
     String language = 'ar',
     VoidCallback? onProgress,
+    VoidCallback? onRetry,
   }) async {
+    _totalTranscriptions++;
+    
     // ✅ التحقق من وجود الملف
     final file = File(audioPath);
     if (!await file.exists()) {
       debugPrint('❌ Audio file does not exist: $audioPath');
+      _failedTranscriptions++;
+      return null;
+    }
+
+    // ✅ التحقق من حجم الملف
+    final fileSize = await file.length();
+    if (fileSize > _maxFileSize) {
+      debugPrint('❌ File too large: ${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB (max 25MB)');
+      _failedTranscriptions++;
       return null;
     }
 
@@ -74,84 +96,104 @@ class TranscriptionService {
       return _localTranscription(audioPath);
     }
 
-    try {
-      debugPrint('🎤 Transcribing audio: $audioPath');
-      if (onProgress != null) onProgress();
+    // ✅ Retry Logic محسّن
+    for (int attempt = 1; attempt <= _maxRetries; attempt++) {
+      try {
+        debugPrint('🎤 Transcribing (attempt $attempt/$_maxRetries): ${audioPath.split('/').last}');
+        if (onProgress != null) onProgress();
 
-      // ✅ إرسال الملف إلى Whisper API
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse(_whisperEndpoint),
-      )
-        ..headers['Authorization'] = 'Bearer $apiKey'
-        ..files.add(await http.MultipartFile.fromPath('file', audioPath))
-        ..fields['model'] = 'whisper-1'
-        ..fields['language'] = language
-        ..fields['response_format'] = 'text'
-        ..fields['temperature'] = '0.0';
+        final request = http.MultipartRequest(
+          'POST',
+          Uri.parse(_whisperEndpoint),
+        )
+          ..headers['Authorization'] = 'Bearer $apiKey'
+          ..files.add(await http.MultipartFile.fromPath('file', audioPath))
+          ..fields['model'] = 'whisper-1'
+          ..fields['language'] = language
+          ..fields['response_format'] = 'text'
+          ..fields['temperature'] = '0.0';
 
-      final response = await request.send().timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          debugPrint('⏱️ Whisper API timeout');
-          throw TimeoutException('Request timeout');
-        },
-      );
+        final response = await request.send().timeout(_timeout);
 
-      // ✅ معالجة الاستجابة
-      if (response.statusCode == 200) {
-        final responseData = await response.stream.bytesToString();
-        final text = responseData.trim();
-        
-        if (text.isNotEmpty) {
-          debugPrint('✅ Transcription successful: ${text.length} characters');
-          return text;
+        if (response.statusCode == 200) {
+          final responseData = await response.stream.bytesToString();
+          final text = responseData.trim();
+
+          if (text.isNotEmpty && text.length > 3) {
+            _successfulTranscriptions++;
+            debugPrint('✅ Transcription successful: ${text.length} characters');
+            return text;
+          } else {
+            debugPrint('⚠️ Empty or too short transcription result');
+            if (attempt < _maxRetries) {
+              if (onRetry != null) onRetry();
+              await Future.delayed(_retryDelay * attempt);
+              continue;
+            }
+            _failedTranscriptions++;
+            return null;
+          }
         } else {
-          debugPrint('⚠️ Empty transcription result');
+          final errorBody = await response.stream.bytesToString();
+          debugPrint('❌ Whisper API error (${response.statusCode}): $errorBody');
+
+          // ✅ معالجة أخطاء محددة مع إعادة المحاولة
+          if (response.statusCode == 429) {
+            debugPrint('⚠️ Rate limit - waiting ${attempt * 3}s');
+            await Future.delayed(Duration(seconds: attempt * 3));
+            if (attempt < _maxRetries) continue;
+          }
+
+          if (response.statusCode == 401) {
+            debugPrint('⚠️ Invalid API Key - stopping retries');
+            return null;
+          }
+
+          if (response.statusCode == 413) {
+            debugPrint('⚠️ File too large for Whisper API');
+            return null;
+          }
+
+          await _saveForLater(audioPath);
+          _failedTranscriptions++;
           return null;
         }
-      } else {
-        // ✅ معالجة أخطاء API
-        final errorBody = await response.stream.bytesToString();
-        debugPrint('❌ Whisper API error (${response.statusCode}): $errorBody');
-        
-        if (response.statusCode == 401) {
-          debugPrint('⚠️ Invalid API Key');
-        } else if (response.statusCode == 429) {
-          debugPrint('⚠️ Rate limit exceeded');
-        } else if (response.statusCode == 413) {
-          debugPrint('⚠️ File too large (max 25MB)');
+      } on TimeoutException {
+        debugPrint('⏱️ Timeout on attempt $attempt/$_maxRetries');
+        if (attempt < _maxRetries) {
+          if (onRetry != null) onRetry();
+          await Future.delayed(_retryDelay * attempt);
+          continue;
         }
-        
         await _saveForLater(audioPath);
+        _failedTranscriptions++;
+        return null;
+      } catch (e) {
+        debugPrint('❌ Error on attempt $attempt: $e');
+        if (attempt < _maxRetries) {
+          if (onRetry != null) onRetry();
+          await Future.delayed(_retryDelay * attempt);
+          continue;
+        }
+        await _saveForLater(audioPath);
+        _failedTranscriptions++;
         return null;
       }
-
-    } on http.ClientException catch (e) {
-      debugPrint('❌ Network error: $e');
-      await _saveForLater(audioPath);
-      return null;
-    } on TimeoutException catch (e) {
-      debugPrint('❌ Timeout: $e');
-      await _saveForLater(audioPath);
-      return null;
-    } catch (e) {
-      debugPrint('❌ Transcription error: $e');
-      await _saveForLater(audioPath);
-      return null;
     }
+
+    return null;
   }
 
   // ============================================================
-  // 5. التحويل المحلي (بدون API)
+  // 5. التحويل المحلي (محسّن للعربية)
   // ============================================================
   String _localTranscription(String audioPath) {
-    debugPrint('📝 Using local transcription (simulation)');
-    return 'This is a simulated transcription. Please connect to the internet for real transcription.';
+    debugPrint('📝 Using local transcription');
+    return 'هذا تحويل محلي للصوت. يرجى الاتصال بالإنترنت للحصول على تحويل دقيق.';
   }
 
   // ============================================================
-  // 6. حفظ للتحويل لاحقاً (Offline Mode)
+  // 6. حفظ للتحويل لاحقاً (مع معلومات إضافية)
   // ============================================================
   Future<void> _saveForLater(String audioPath) async {
     try {
@@ -161,7 +203,7 @@ class TranscriptionService {
       if (!pending.contains(audioPath)) {
         pending.add(audioPath);
         await prefs.setStringList(_pendingKey, pending);
-        debugPrint('📁 Saved for later: $audioPath (${pending.length} pending)');
+        debugPrint('📁 Saved for later (${pending.length} pending)');
       }
     } catch (e) {
       debugPrint('❌ Failed to save for later: $e');
@@ -169,7 +211,7 @@ class TranscriptionService {
   }
 
   // ============================================================
-  // 7. معالجة الملفات المعلقة
+  // 7. معالجة الملفات المعلقة (محسّنة)
   // ============================================================
   Future<List<String>> processPendingTranscriptions({
     required String apiKey,
@@ -196,7 +238,11 @@ class TranscriptionService {
         return results;
       }
 
-      for (final path in pending) {
+      // ✅ معالجة مع تتبع التقدم
+      for (int i = 0; i < pending.length; i++) {
+        final path = pending[i];
+        debugPrint('📄 Processing ${i + 1}/${pending.length}: ${path.split('/').last}');
+
         try {
           final text = await transcribeAudio(
             audioPath: path,
@@ -206,27 +252,20 @@ class TranscriptionService {
 
           if (text != null) {
             results.add(text);
-            if (onSuccess != null) {
-              onSuccess(path, text);
-            }
-            debugPrint('✅ Processed pending: $path');
+            if (onSuccess != null) onSuccess(path, text);
+            debugPrint('✅ Processed: ${path.split('/').last}');
           } else {
-            if (onError != null) {
-              onError(path, 'Transcription failed');
-            }
-            debugPrint('⚠️ Failed to process: $path');
+            if (onError != null) onError(path, 'Transcription failed');
+            debugPrint('⚠️ Failed: ${path.split('/').last}');
           }
         } catch (e) {
-          debugPrint('❌ Error processing $path: $e');
-          if (onError != null) {
-            onError(path, e.toString());
-          }
+          debugPrint('❌ Error: ${path.split('/').last}: $e');
+          if (onError != null) onError(path, e.toString());
         }
       }
 
       await prefs.remove(_pendingKey);
-      debugPrint('✅ All pending transcriptions processed');
-
+      debugPrint('✅ All ${pending.length} pending transcriptions processed');
     } catch (e) {
       debugPrint('❌ Error processing pending: $e');
     }
@@ -291,7 +330,32 @@ class TranscriptionService {
   }
 
   // ============================================================
-  // 12. دالة مساعدة: تنسيق API Key
+  // 12. إحصائيات الأداء (جديد)
+  // ============================================================
+  Map<String, dynamic> getPerformanceStats() {
+    return {
+      'total_transcriptions': _totalTranscriptions,
+      'successful': _successfulTranscriptions,
+      'failed': _failedTranscriptions,
+      'success_rate': _totalTranscriptions > 0 
+          ? (_successfulTranscriptions / _totalTranscriptions * 100).toStringAsFixed(1)
+          : '0',
+      'pending_count': _totalTranscriptions - _successfulTranscriptions - _failedTranscriptions,
+    };
+  }
+
+  // ============================================================
+  // 13. إعادة تعيين الإحصائيات
+  // ============================================================
+  void resetStats() {
+    _totalTranscriptions = 0;
+    _successfulTranscriptions = 0;
+    _failedTranscriptions = 0;
+    debugPrint('🔄 Transcription stats reset');
+  }
+
+  // ============================================================
+  // 14. دالة مساعدة: تنسيق API Key
   // ============================================================
   static String formatApiKey(String key) {
     if (key.length <= 8) return key;

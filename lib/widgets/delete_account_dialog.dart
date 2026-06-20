@@ -1,7 +1,6 @@
-
 // ============================================================
 // 📄 lib/widgets/delete_account_dialog.dart
-// 📌 نافذة حذف الحساب - Delete Account Dialog
+// 📌 نافذة حذف الحساب - Delete Account Dialog (محسّنة)
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -32,283 +31,287 @@ class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
       ),
       elevation: 0,
       backgroundColor: Colors.transparent,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white,
-              const Color(0xFFFFF5F5),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.9,
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                const Color(0xFFFFF5F5),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 30,
+                offset: const Offset(0, 10),
+                spreadRadius: 5,
+              ),
             ],
           ),
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 30,
-              offset: const Offset(0, 10),
-              spreadRadius: 5,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ============================================================
-            // Icon
-            // ============================================================
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFFE76F51).withValues(alpha: 0.15),
-                    const Color(0xFFFF6B6B).withValues(alpha: 0.15),
-                  ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ============================================================
+                // Icon
+                // ============================================================
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFFE76F51).withValues(alpha: 0.15),
+                        const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+                      ],
+                    ),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFE76F51).withValues(alpha: 0.3),
+                      width: 2,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.delete_forever_rounded,
+                    color: Color(0xFFE76F51),
+                    size: 48,
+                  ),
                 ),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFFE76F51).withValues(alpha: 0.3),
-                  width: 2,
-                ),
-              ),
-              child: const Icon(
-                Icons.delete_forever_rounded,
-                color: Color(0xFFE76F51),
-                size: 48,
-              ),
-            ),
 
-            const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-            // ============================================================
-            // Title
-            // ============================================================
-            Text(
-              'Delete Account',
-              style: GoogleFonts.manrope(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFFE76F51),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // ============================================================
-            // Description
-            // ============================================================
-            Text(
-              'This action cannot be undone. All your data will be permanently deleted.',
-              style: GoogleFonts.manrope(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: const Color(0xFF6B6B7A),
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 16),
-
-            // ============================================================
-            // Warning List
-            // ============================================================
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF5F5),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFE76F51).withValues(alpha: 0.15),
-                ),
-              ),
-              child: Column(
-                children: [
-                  _buildWarningItem(
-                    icon: Icons.person_off_outlined,
-                    text: 'Account will be permanently deleted',
+                // ============================================================
+                // Title
+                // ============================================================
+                Text(
+                  'Delete Account',
+                  style: GoogleFonts.manrope(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
                     color: const Color(0xFFE76F51),
                   ),
-                  const SizedBox(height: 8),
-                  _buildWarningItem(
-                    icon: Icons.data_usage_outlined,
-                    text: 'All check-ins and data will be removed',
-                    color: const Color(0xFFE76F51),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildWarningItem(
-                    icon: Icons.delete_sweep_outlined,
-                    text: 'History and recommendations lost forever',
-                    color: const Color(0xFFE76F51),
-                  ),
-                ],
-              ),
-            ),
+                ),
 
-            const SizedBox(height: 20),
+                const SizedBox(height: 8),
 
-            // ============================================================
-            // Confirmation Checkbox
-            // ============================================================
-            GestureDetector(
-              onTap: () {
-                setState(() {
-                  _isConfirmed = !_isConfirmed;
-                });
-              },
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _isConfirmed
-                      ? const Color(0xFFE76F51).withValues(alpha: 0.05)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _isConfirmed
-                        ? const Color(0xFFE76F51)
-                        : const Color(0xFFE8E8EE),
-                    width: 1.5,
+                // ============================================================
+                // Description
+                // ============================================================
+                Text(
+                  'This action cannot be undone. All your data will be permanently deleted.',
+                  style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF6B6B7A),
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 16),
+
+                // ============================================================
+                // Warning List (محسّن)
+                // ============================================================
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF5F5),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFFE76F51).withValues(alpha: 0.15),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildWarningItem(
+                        icon: Icons.person_off_outlined,
+                        text: 'Account will be permanently deleted',
+                        color: const Color(0xFFE76F51),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildWarningItem(
+                        icon: Icons.data_usage_outlined,
+                        text: 'All check-ins and data will be removed',
+                        color: const Color(0xFFE76F51),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildWarningItem(
+                        icon: Icons.delete_sweep_outlined,
+                        text: 'History and recommendations lost forever',
+                        color: const Color(0xFFE76F51),
+                      ),
+                    ],
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
+
+                const SizedBox(height: 20),
+
+                // ============================================================
+                // Confirmation Checkbox (محسّن)
+                // ============================================================
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _isConfirmed = !_isConfirmed;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _isConfirmed
+                          ? const Color(0xFFE76F51).withValues(alpha: 0.05)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
                         color: _isConfirmed
                             ? const Color(0xFFE76F51)
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: _isConfirmed
-                              ? const Color(0xFFE76F51)
-                              : const Color(0xFFB0B0BA),
-                          width: 2,
-                        ),
-                      ),
-                      child: _isConfirmed
-                          ? const Icon(
-                              Icons.check,
-                              color: Colors.white,
-                              size: 16,
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'I understand that this action cannot be undone',
-                        style: GoogleFonts.manrope(
-                          fontSize: 13,
-                          fontWeight: _isConfirmed ? FontWeight.w600 : FontWeight.w400,
-                          color: _isConfirmed
-                              ? const Color(0xFF1A1A2E)
-                              : const Color(0xFF8A8A9A),
-                        ),
+                            : const Color(0xFFE8E8EE),
+                        width: 1.5,
                       ),
                     ),
-                  ],
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: _isConfirmed
+                                ? const Color(0xFFE76F51)
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: _isConfirmed
+                                  ? const Color(0xFFE76F51)
+                                  : const Color(0xFFB0B0BA),
+                              width: 2,
+                            ),
+                          ),
+                          child: _isConfirmed
+                              ? const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 16,
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'I understand that this action cannot be undone',
+                            style: GoogleFonts.manrope(
+                              fontSize: 13,
+                              fontWeight: _isConfirmed ? FontWeight.w600 : FontWeight.w400,
+                              color: _isConfirmed
+                                  ? const Color(0xFF1A1A2E)
+                                  : const Color(0xFF8A8A9A),
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
 
-            const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-            // ============================================================
-            // Buttons
-            // ============================================================
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: widget.isLoading ? null : () => Navigator.pop(context),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF5F5F8),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: const Color(0xFFE8E8EE),
-                          width: 1,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.manrope(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF8A8A9A),
+                // ============================================================
+                // Buttons (محسّن - حل مشكلة التجاوز)
+                // ============================================================
+                Row(
+                  children: [
+                    // ✅ زر Cancel
+                    Expanded(
+                      flex: 1,
+                      child: GestureDetector(
+                        onTap: widget.isLoading ? null : () => Navigator.pop(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F5F8),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: const Color(0xFFE8E8EE),
+                              width: 1,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Cancel',
+                              style: GoogleFonts.manrope(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF8A8A9A),
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: (_isConfirmed && !widget.isLoading)
-                        ? widget.onConfirm
-                        : null,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        gradient: (!_isConfirmed || widget.isLoading)
-                            ? LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  const Color(0xFFB0B0BA),
-                                  const Color(0xFF8A8A9A),
-                                ],
-                              )
-                            : LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  const Color(0xFFE76F51),
-                                  const Color(0xFFFF6B6B),
-                                ],
-                              ),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: (!_isConfirmed || widget.isLoading)
-                            ? null
-                            : [
-                                BoxShadow(
-                                  color: const Color(0xFFE76F51).withValues(alpha: 0.3),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                      ),
-                      child: Center(
-                        child: widget.isLoading
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.delete_forever_rounded,
-                                    color: Colors.white,
-                                    size: 18,
+                    const SizedBox(width: 12),
+
+                    // ✅ زر Delete Account (مبسط - بدون Row إضافي)
+                    Expanded(
+                      flex: 1,
+                      child: GestureDetector(
+                        onTap: (_isConfirmed && !widget.isLoading)
+                            ? widget.onConfirm
+                            : null,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            gradient: (!_isConfirmed || widget.isLoading)
+                                ? LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      const Color(0xFFB0B0BA),
+                                      const Color(0xFF8A8A9A),
+                                    ],
+                                  )
+                                : LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      const Color(0xFFE76F51),
+                                      const Color(0xFFFF6B6B),
+                                    ],
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: (!_isConfirmed || widget.isLoading)
+                                ? null
+                                : [
+                                    BoxShadow(
+                                      color: const Color(0xFFE76F51).withValues(alpha: 0.3),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                          ),
+                          child: Center(
+                            child: widget.isLoading
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text( // ✅ استخدام Text مباشرة بدلاً من Row
                                     'Delete Account',
                                     style: GoogleFonts.manrope(
                                       fontSize: 15,
@@ -318,17 +321,17 @@ class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
                                           : Colors.white,
                                     ),
                                   ),
-                                ],
-                              ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
+
+                const SizedBox(height: 8),
               ],
             ),
-
-            const SizedBox(height: 8),
-          ],
+          ),
         ),
       ),
     );
@@ -355,6 +358,8 @@ class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
               fontWeight: FontWeight.w500,
               color: const Color(0xFF1A1A2E),
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

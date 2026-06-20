@@ -2071,6 +2071,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/supabase_service.dart';
+import 'dart:io';
 
 class InsightsScreen extends StatefulWidget {
   const InsightsScreen({super.key});
@@ -2105,6 +2106,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   List<Map<String, String>> _personalPatterns = [];
   List<Map<String, dynamic>> _forecastData = [];
   String _aiInsight = '';
+  bool _hasLoadedOnce = false; // ✅ أضف هذا السطر
 
   // ============================================================
   // بيانات Analytics
@@ -2116,6 +2118,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
   Map<String, double> _categoryDistribution = {'Low': 0, 'Medium': 0, 'High': 0};
   Map<String, double> _toolsImpact = {};
   List<Map<String, dynamic>> _insights = [];
+
+
 
   // ============================================================
   // دورة الحياة
@@ -2136,46 +2140,82 @@ class _InsightsScreenState extends State<InsightsScreen> {
   // ============================================================
   // جلب البيانات من Supabase
   // ============================================================
-  Future<void> _loadData() async {
-    if (_isRefreshing) return;
-    
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+Future<void> _loadData() async {
+  if (_isRefreshing) return;
+  
+  setState(() {
+    _isLoading = true;
+    _errorMessage = null;
+  });
 
-    try {
-      final user = _supabaseService.currentUser;
-      if (user == null) {
+  try {
+    // ✅ 1. التحقق من الإنترنت
+    final hasInternet = await _hasInternetConnection();
+    if (!hasInternet) {
+      // ✅ إذا كان هناك بيانات مخزنة، اعرضها
+      if (_checkins.isNotEmpty) {
         setState(() {
-          _errorMessage = 'Please login to view insights';
           _isLoading = false;
+          _isRefreshing = false;
         });
         return;
       }
-
-      // جلب بيانات المستخدم
-      _userData = await _supabaseService.getUserData(user.id);
-
-      // جلب جميع Check-ins للمستخدم
-      final response = await _supabaseService.client
-          .from('checkins')
-          .select()
-          .eq('user_id', user.id)
-          .order('checkin_date', ascending: true);
-
-      _checkins = response.cast<Map<String, dynamic>>();
       
-      // معالجة وتحليل البيانات
-      _processData();
-      
+      // ✅ إذا لا يوجد بيانات، اعرض رسالة عدم وجود إنترنت
       setState(() {
+        _errorMessage = 'no_internet';
         _isLoading = false;
         _isRefreshing = false;
       });
+      return;
+    }
 
-    } catch (e) {
-      debugPrint('❌ Error loading insights: $e');
+    // ✅ 2. جلب البيانات (الكود الموجود)
+    final user = _supabaseService.currentUser;
+    if (user == null) {
+      setState(() {
+        _errorMessage = 'Please login to view insights';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    _userData = await _supabaseService.getUserData(user.id);
+
+    final response = await _supabaseService.client
+        .from('checkins')
+        .select()
+        .eq('user_id', user.id)
+        .order('checkin_date', ascending: true)
+        .timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            throw Exception('Connection timeout');
+          },
+        );
+
+    _checkins = response.cast<Map<String, dynamic>>();
+    _processData();
+    
+    _hasLoadedOnce = true; // ✅ ضع علامة التحميل الناجح
+    
+    setState(() {
+      _isLoading = false;
+      _isRefreshing = false;
+    });
+
+  } catch (e) {
+    debugPrint('❌ Error loading insights: $e');
+    
+    // ✅ 3. معالجة أخطاء الاتصال
+    if (e.toString().contains('Connection timeout') || 
+        e.toString().contains('Failed host lookup')) {
+      setState(() {
+        _errorMessage = 'no_internet';
+        _isLoading = false;
+        _isRefreshing = false;
+      });
+    } else {
       setState(() {
         _errorMessage = 'Failed to load insights. Please try again.';
         _isLoading = false;
@@ -2183,6 +2223,17 @@ class _InsightsScreenState extends State<InsightsScreen> {
       });
     }
   }
+}
+
+Future<bool> _hasInternetConnection() async {
+  try {
+    final result = await InternetAddress.lookup('google.com');
+    return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+  } catch (_) {
+    return false;
+  }
+}
+
 
   // ============================================================
   // معالجة وتحليل البيانات
@@ -2575,91 +2626,42 @@ class _InsightsScreenState extends State<InsightsScreen> {
   // ============================================================
   // البناء الرئيسي
   // ============================================================
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFCF9F8),
-      appBar: _buildAppBar(),
-      body: _isLoading
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: Color(0xFF5235C5)),
-                  SizedBox(height: 16),
-                  Text(
-                    'Loading insights...',
-                    style: TextStyle(color: Color(0xFF8A8A9A), fontSize: 14),
-                  ),
-                ],
-              ),
-            )
-          : _errorMessage != null
-              ? _buildErrorState()
-              : RefreshIndicator(
-                  onRefresh: _loadData,
-                  color: const Color(0xFF5235C5),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 📊 قسم Patterns
-                        _buildSectionHeader('📊 Your Patterns', 'Personal patterns detected from your usage data'),
-                        const SizedBox(height: 12),
-
-                        _buildCognitiveOverview(),
-                        const SizedBox(height: 16),
-
-                        _buildCognitiveProfile(),
-                        const SizedBox(height: 16),
-
-                        _buildCognitiveLoadTrend(),
-                        const SizedBox(height: 16),
-
-                        _buildRecommendationImpact(),
-                        const SizedBox(height: 16),
-
-                        _buildPersonalPatterns(),
-                        const SizedBox(height: 16),
-
-                        _buildFatigueForecast(),
-                        const SizedBox(height: 16),
-
-                        _buildAIInsight(),
-
-                        const SizedBox(height: 32),
-
-                        // 📈 قسم Analytics
-                        _buildSectionHeader('📈 Analytics', 'Detailed statistics and analysis'),
-                        const SizedBox(height: 12),
-
-                        _buildPeriodSelector(),
-                        const SizedBox(height: 16),
-
-                        _buildMainChart(),
-                        const SizedBox(height: 16),
-
-                        _buildStatisticsSummary(),
-                        const SizedBox(height: 16),
-
-                        _buildCategoryDistribution(),
-                        const SizedBox(height: 16),
-
-                        _buildAIToolsImpact(),
-                        const SizedBox(height: 16),
-
-                        _buildInsightsSummary(),
-
-                        const SizedBox(height: 80),
-                      ],
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    backgroundColor: const Color(0xFFFCF9F8),
+    appBar: _buildAppBar(),
+    body: _isLoading && !_hasLoadedOnce
+        ? const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: Color(0xFF5235C5)),
+                SizedBox(height: 16),
+                Text(
+                  'Loading insights...',
+                  style: TextStyle(color: Color(0xFF8A8A9A), fontSize: 14),
+                ),
+              ],
+            ),
+          )
+        : _errorMessage == 'no_internet' // ✅ شرط جديد
+            ? _buildNoInternetState()
+            : _errorMessage != null
+                ? _buildErrorState()
+                : RefreshIndicator(
+                    onRefresh: _loadData,
+                    color: const Color(0xFF5235C5),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Column(
+                        // ... المحتوى الموجود
+                      ),
                     ),
                   ),
-                ),
-    );
-  }
-
+  );
+}
 // ============================================================
 // App Bar (محسّن - مع حل مشكلة تجاوز النص)
 // ============================================================
@@ -3779,151 +3781,434 @@ Widget _buildStatCardEnhanced({
     );
   }
 
-  // ============================================================
-  // 6. Fatigue Forecast (ديناميكي)
-  // ============================================================
-  Widget _buildFatigueForecast() {
-    return _buildCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE76F51).withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.warning_amber_outlined,
-                  color: Color(0xFFE76F51),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Fatigue Forecast',
-                style: GoogleFonts.manrope(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF1A1A2E),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _checkins.length >= 3
-                ? 'What happens if your current habits continue?'
-                : 'Complete at least 3 check-ins to see your forecast.',
-            style: GoogleFonts.manrope(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-              color: const Color(0xFF6B6B7A),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_checkins.length >= 3 && _forecastData.isNotEmpty)
+// ============================================================
+// 6. Fatigue Forecast (تصميم احترافي ومتناسق)
+// ============================================================
+Widget _buildFatigueForecast() {
+  return Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          const Color(0xFFE76F51).withValues(alpha: 0.06),
+          Colors.white,
+          const Color(0xFFE76F51).withValues(alpha: 0.03),
+        ],
+      ),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(
+        color: const Color(0xFFE76F51).withValues(alpha: 0.12),
+        width: 1.5,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFFE76F51).withValues(alpha: 0.06),
+          blurRadius: 20,
+          offset: const Offset(0, 4),
+          spreadRadius: -4,
+        ),
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.02),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+          spreadRadius: -2,
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ✅ العنوان مع أيقونة
+        Row(
+          children: [
             Container(
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFFC9C4D6)),
-                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFE76F51).withValues(alpha: 0.15),
+                    const Color(0xFFE76F51).withValues(alpha: 0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFE76F51).withValues(alpha: 0.12),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
+              child: const Icon(
+                Icons.analytics_rounded,
+                color: Color(0xFFE76F51),
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
               child: Column(
-                children: _forecastData.map((item) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(color: const Color(0xFFC9C4D6)),
-                      ),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Fatigue Forecast',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1A1A2E),
                     ),
+                  ),
+                  Text(
+                    _checkins.length >= 3
+                        ? 'What happens if your current habits continue?'
+                        : 'Complete at least 3 check-ins to see your forecast.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF6B6B7A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // ✅ Badge حالة
+            if (_checkins.length >= 3 && _forecastData.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE76F51).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFFE76F51).withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Text(
+                  '${_forecastData.length} Days',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFE76F51),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        if (_checkins.length >= 3 && _forecastData.isNotEmpty) ...[
+          // ✅ بطاقات التوقعات
+          ..._forecastData.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
+            final isFirst = index == 0;
+            final isLast = index == _forecastData.length - 1;
+            final score = item['score'] as double;
+            final level = item['level'] as String;
+            final color = item['color'] as Color;
+            final day = item['day'] as String;
+            final date = item['date'] as String;
+
+            // ✅ أيقونة حسب المستوى
+            final icon = level == 'High'
+                ? Icons.warning_amber_rounded
+                : level == 'Medium'
+                ? Icons.info_outline
+                : Icons.check_circle_outline;
+
+            return Container(
+              margin: EdgeInsets.only(bottom: isLast ? 0 : 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: color.withValues(alpha: 0.15),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                    spreadRadius: -4,
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // ✅ اليوم والتاريخ
+                  Expanded(
+                    flex: 2,
                     child: Row(
                       children: [
+                        // ✅ رقم اليوم مع خلفية
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                color.withValues(alpha: 0.15),
+                                color.withValues(alpha: 0.05),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: color.withValues(alpha: 0.1),
+                              width: 1,
+                            ),
+                          ),
+                          child: Center(
+                            child: isFirst
+                                ? const Text(
+                                    '⭐',
+                                    style: TextStyle(fontSize: 16),
+                                  )
+                                : Text(
+                                    (index + 1).toString(),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: color,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
-                          flex: 2,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                item['day'] as String,
-                                style: GoogleFonts.manrope(
+                                day,
+                                style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF1C1B1B),
+                                  color: Color(0xFF1A1A2E),
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               Text(
-                                item['date'] as String,
-                                style: GoogleFonts.manrope(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF484554),
+                                date,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF8A8A9A),
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: item['color'] as Color,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                item['level'] as String,
-                                style: GoogleFonts.manrope(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: item['color'] as Color,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          '${(item['score'] as double).toStringAsFixed(1)}/10',
-                          style: GoogleFonts.manrope(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF1C1B1B),
                           ),
                         ),
                       ],
                     ),
-                  );
-                }).toList(),
+                  ),
+
+                  // ✅ المستوى
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: color.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, size: 14, color: color),
+                        const SizedBox(width: 4),
+                        Text(
+                          level,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  // ✅ النتيجة
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          color.withValues(alpha: 0.12),
+                          color.withValues(alpha: 0.04),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: color.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          score.toStringAsFixed(1),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: color,
+                          ),
+                        ),
+                        Text(
+                          '/10',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: color.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F7FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE8E8EE)),
+            );
+          }),
+
+          const SizedBox(height: 16),
+
+          // ✅ تذييل مع نصيحة
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFFE76F51).withValues(alpha: 0.06),
+                  Colors.white,
+                ],
               ),
-              child: const Center(
-                child: Text(
-                  'Complete more check-ins to see your fatigue forecast',
-                  style: TextStyle(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFFE76F51).withValues(alpha: 0.08),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE76F51).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.lightbulb_outline,
+                    size: 16,
+                    color: Color(0xFFE76F51),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _forecastData.first['level'] == 'High'
+                        ? '💡 High load predicted. Take proactive breaks and limit AI tools to 2 per session.'
+                        : _forecastData.first['level'] == 'Medium'
+                        ? '💡 Moderate load expected. Short breaks every 2 hours will help maintain balance.'
+                        : '💡 Great! Low load expected. Keep up your current habits and stay consistent.',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF4A4A5A),
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          // ✅ حالة عدم وجود بيانات
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F7FF),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(0xFFE8E8EE),
+                width: 1.5,
+              ),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE76F51).withValues(alpha: 0.06),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.data_usage_outlined,
+                    size: 40,
+                    color: Color(0xFFE76F51),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '🔮 Not Enough Data',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _checkins.isEmpty
+                      ? 'Start your first check-in to begin tracking.'
+                      : 'Complete ${3 - _checkins.length} more check-in${3 - _checkins.length > 1 ? 's' : ''} to unlock your forecast.',
+                  style: const TextStyle(
                     fontSize: 13,
+                    color: Color(0xFF6B6B7A),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: _checkins.length / 3,
+                    backgroundColor: const Color(0xFFE8E8EE),
+                    color: const Color(0xFFE76F51),
+                    minHeight: 5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_checkins.length} / 3 check-ins',
+                  style: const TextStyle(
+                    fontSize: 10,
                     color: Color(0xFF8A8A9A),
                   ),
                 ),
-              ),
+              ],
             ),
+          ),
         ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 
   // ============================================================
   // 7. AI Insight (ديناميكي)
@@ -4775,4 +5060,141 @@ Widget _buildStatItemImproved({
       ),
     );
   }
+
+  // ✅ أضف هذه الدالة في نهاية الملف (قبل آخر قوس)
+Widget _buildNoInternetState() {
+  return Center(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // ✅ أيقونة
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFFE76F51).withValues(alpha: 0.1),
+                  const Color(0xFFFF6B6B).withValues(alpha: 0.05),
+                ],
+              ),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: const Color(0xFFE76F51).withValues(alpha: 0.2),
+                width: 2,
+              ),
+            ),
+            child: const Icon(
+              Icons.wifi_off_rounded,
+              color: Color(0xFFE76F51),
+              size: 64,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ✅ العنوان
+          Text(
+            'No Internet Connection',
+            style: GoogleFonts.manrope(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF1A1A2E),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ✅ الوصف
+          Text(
+            'We couldn\'t connect to the server. Please check your internet connection and try again.',
+            style: GoogleFonts.manrope(
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: const Color(0xFF6B6B7A),
+              height: 1.6,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+
+          // ✅ معلومات إضافية
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F7FF),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFFE8E8EE),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  color: Color(0xFF5235C5),
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Your data will be available once you reconnect',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF5235C5),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // ✅ زر إعادة المحاولة
+          ElevatedButton(
+            onPressed: _loadData,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF5235C5),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 4,
+              shadowColor: const Color(0xFF5235C5).withValues(alpha: 0.3),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.refresh_rounded, size: 20),
+                SizedBox(width: 10),
+                Text(
+                  'Try Again',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ✅ نص مساعد
+          Text(
+            'or connect to Wi-Fi and try again',
+            style: GoogleFonts.manrope(
+              fontSize: 13,
+              fontWeight: FontWeight.w400,
+              color: const Color(0xFF8A8A9A),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 }

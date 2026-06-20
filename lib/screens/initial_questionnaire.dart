@@ -28,6 +28,7 @@ class _InitialQuestionnaireState extends State<InitialQuestionnaire> {
   int _focusDifficulty = 3;
   String _fatigueTime = '';
   String _peakFatigueTime = '';
+  int _mentalFatigue = 3;
 
   @override
   void initState() {
@@ -43,29 +44,44 @@ class _InitialQuestionnaireState extends State<InitialQuestionnaire> {
       subtitle: '(Select all that apply)',
       imagePath: 'assets/images/2_WEMAN.png',
       type: 'multi_select',
-      options: ['ChatGPT', 'Gemini', 'Claude', 'Microsoft Copilot', 'Perplexity', 'Other'],
+      options: [
+        'ChatGPT',
+        'Gemini',
+        'Claude',
+        'Microsoft Copilot',
+        'Perplexity',
+        'Other',
+      ],
     ),
     _buildQuestionPage(
       pageIndex: 2,
       title: 'How much time do you spend using AI tools each day?',
       subtitle: 'Select the range that best fits your daily usage',
-      imagePath: 'assets/images/Group.png',
+      imagePath: 'assets/images/undraw_time-change_lyxp.png',
       type: 'single_select',
-      options: ['Less than 1 hour', '1 - 2 hours', '2 - 4 hours', '4 - 6 hours', '6 - 8 hours', 'More than 8 hours'],
+      options: [
+        'Less than 1 hour',
+        '1 - 2 hours',
+        '2 - 4 hours',
+        '4 - 6 hours',
+        '6 - 8 hours',
+        'More than 8 hours',
+      ],
     ),
     _buildQuestionPage(
       pageIndex: 3,
       title: 'Do you rely on AI tools when making important decisions?',
       subtitle: 'Select one option',
-      imagePath: 'assets/images/undraw_investing_uzcu 1.png',
+      imagePath: 'assets/images/undraw_my-answer_au1h.png',
       type: 'yes_no',
     ),
     _buildQuestionPage(
       pageIndex: 4,
-      title: 'How difficult is it for you to stay focused while using AI tools?',
+      title:
+          'How difficult is it for you to stay focused while using AI tools?',
       subtitle: 'Rate from 1 to 5',
-      imagePath: 'assets/images/undraw_investing_uzcu 1.png',
-      type: 'scale',
+      imagePath: 'assets/images/undraw_investing_uzcu.png',
+      type: 'scale_focus', // تم التعديل هنا
       min: 1,
       max: 5,
       labels: ['Rarely', 'Sometimes', 'Often', 'Very Often', 'Very Difficult'],
@@ -73,14 +89,17 @@ class _InitialQuestionnaireState extends State<InitialQuestionnaire> {
     _buildQuestionPage(
       pageIndex: 5,
       title: 'How often do you feel mentally fatigued after long AI sessions?',
-      subtitle: 'Select the time of day',
+      subtitle: 'Rate from 1 to 5',
       imagePath: 'assets/images/undraw_investing_uzcu 1.png',
-      type: 'single_select',
-      options: ['Morning', 'Afternoon', 'Evening', 'Late Night'],
+      type: 'scale_fatigue',
+      min: 1,
+      max: 5,
+      labels: ['Never', 'Rarely', 'Sometimes', 'Often', 'Very Often'],
     ),
     _buildQuestionPage(
       pageIndex: 6,
-      title: 'When do you usually experience the highest level of mental fatigue?',
+      title:
+          'When do you usually experience the highest level of mental fatigue?',
       subtitle: 'Select the time of day',
       imagePath: 'assets/images/undraw_investing_uzcu 1.png',
       type: 'single_select',
@@ -99,9 +118,9 @@ class _InitialQuestionnaireState extends State<InitialQuestionnaire> {
       case 3:
         return _reliesOnAI != null;
       case 4:
-        return true;
+        return true; // السؤال الرابع (مقياس) دائماً صحيح
       case 5:
-        return _fatigueTime.isNotEmpty;
+        return true; // السؤال الخامس (مقياس) دائماً صحيح - قيمة افتراضية 3
       case 6:
         return _peakFatigueTime.isNotEmpty;
       default:
@@ -109,86 +128,77 @@ class _InitialQuestionnaireState extends State<InitialQuestionnaire> {
     }
   }
 
-  Future<void> _saveAnswers() async {
-    setState(() => _isLoading = true);
+Future<void> _saveAnswers() async {
+  setState(() => _isLoading = true);
 
-    final prefs = await SharedPreferences.getInstance();
-    final isGuest = prefs.getBool('isGuest') ?? false;
+  final prefs = await SharedPreferences.getInstance();
+  final isGuest = prefs.getBool('isGuest') ?? false;
 
-    // قيم افتراضية في حالة Skip
-    final tools = _selectedTools.isEmpty ? ['Other'] : _selectedTools;
-    final usage = _dailyUsage.isEmpty ? 'Less than 1 hour' : _dailyUsage;
-    final relies = _reliesOnAI ?? false;
-    final fatigue = _fatigueTime.isEmpty ? 'Evening' : _fatigueTime;
-    final peakFatigue = _peakFatigueTime.isEmpty ? 'Evening' : _peakFatigueTime;
-    final score = _calculateScore();
+  // قيم افتراضية في حالة Skip
+  final tools = _selectedTools.isEmpty ? ['Other'] : _selectedTools;
+  final usage = _dailyUsage.isEmpty ? 'Less than 1 hour' : _dailyUsage;
+  final relies = _reliesOnAI ?? false;
+  final fatigue = _fatigueTime.isEmpty ? 'Evening' : _fatigueTime;
+  final peakFatigue = _peakFatigueTime.isEmpty ? 'Evening' : _peakFatigueTime;
+  final score = _calculateScore();
 
-    final data = {
-      'selected_tools': tools,
-      'daily_usage': usage,
-      'relies_on_ai': relies,
-      'focus_difficulty': _focusDifficulty,
-      'mental_fatigue': fatigue,
-      'fatigue_time': peakFatigue,
-      'cognitive_load_score': score,
-      'created_at': DateTime.now().toIso8601String(),
-    };
+  final data = {
+    'selected_tools': tools,
+    'daily_usage': usage,
+    'relies_on_ai': relies,
+    'focus_difficulty': _focusDifficulty,
+    'mental_fatigue': _mentalFatigue,
+    'fatigue_time': peakFatigue,
+    'cognitive_load_score': score,
+    'created_at': DateTime.now().toIso8601String(),
+  };
 
-    if (isGuest) {
-      // Guest - حفظ محلي فقط
-      await prefs.setBool('hasCompletedQuestionnaire', true);
-      debugPrint('✅ Guest - saved locally');
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeDashboard()),
-        );
-      }
-      return;
-    }
-
-    final user = _supabaseService.currentUser;
-    if (user == null) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please login first'),
-            backgroundColor: Color(0xFFE76F51),
-          ),
-        );
-      }
-      return;
-    }
-
-    try {
-      // ✅ حاول Supabase أولاً
-      data['user_id'] = user.id;
-      await _supabaseService.client
-          .from('questionnaire_history')
-          .insert(data);
-
-      await _supabaseService.client.from('users').upsert({
-        'id': user.id,
-        'questionnaire_completed': true,
-      });
-
-      debugPrint('✅ Saved to Supabase');
-    } catch (e) {
-      // ❌ فشل الإنترنت - احفظ محلياً
-      await SyncService.savePending(data);
-      debugPrint('📴 No internet - saved locally for later sync');
-    }
-
+  // ✅ حالة 1: مستخدم ضيف
+  if (isGuest) {
     await prefs.setBool('hasCompletedQuestionnaire', true);
-
+    await SyncService.savePending(data);
+    debugPrint('✅ Guest - saved locally');
     if (mounted) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeDashboard()),
       );
     }
+    return;
   }
+
+  // ✅ حالة 2: مستخدم مسجل
+  final user = _supabaseService.currentUser;
+  if (user != null) {
+    try {
+      data['user_id'] = user.id;
+      await _supabaseService.client.from('questionnaire_history').insert(data);
+      await _supabaseService.client.from('users').upsert({
+        'id': user.id,
+        'questionnaire_completed': true,
+      });
+      debugPrint('✅ Saved to Supabase');
+    } catch (e) {
+      // ❌ فشل الإنترنت - احفظ محلياً
+      await SyncService.savePending(data);
+      debugPrint('📴 No internet - saved locally for later sync');
+    }
+  } else {
+    // ✅ حالة 3: لا يوجد مستخدم (غير مسجل) - نحفظ كضيف
+    await prefs.setBool('isGuest', true);
+    await SyncService.savePending(data);
+    debugPrint('👤 No user - saved locally as guest');
+  }
+
+  await prefs.setBool('hasCompletedQuestionnaire', true);
+
+  if (mounted) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const HomeDashboard()),
+    );
+  }
+}
 
   int _calculateScore() {
     int score = 2;
@@ -448,7 +458,7 @@ class _InitialQuestionnaireState extends State<InitialQuestionnaire> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(36),
               child: Image.asset(
-                'assets/images/undraw_investing_uzcu 1.png',
+                'assets/images/help.png',
                 width: 160,
                 height: 160,
                 fit: BoxFit.contain,
@@ -583,8 +593,14 @@ class _InitialQuestionnaireState extends State<InitialQuestionnaire> {
         return _buildSingleSelect(options);
       case 'yes_no':
         return _buildYesNo();
-      case 'scale':
-        return _buildScale(min, max, labels);
+      case 'scale_focus': // السؤال الرابع
+        return _buildScale(min, max, labels, _focusDifficulty, (value) {
+          setState(() => _focusDifficulty = value);
+        });
+      case 'scale_fatigue': // السؤال الخامس
+        return _buildScale(min, max, labels, _mentalFatigue, (value) {
+          setState(() => _mentalFatigue = value);
+        });
       default:
         return const SizedBox();
     }
@@ -612,10 +628,14 @@ class _InitialQuestionnaireState extends State<InitialQuestionnaire> {
           selectedColor: const Color(0xFF5E35B1),
           backgroundColor: Colors.white,
           labelStyle: TextStyle(
-            color: _selectedTools.contains(option) ? Colors.white : Colors.black,
+            color: _selectedTools.contains(option)
+                ? Colors.white
+                : Colors.black,
           ),
           side: BorderSide(
-            color: _selectedTools.contains(option) ? const Color(0xFF5E35B1) : Colors.grey.shade300,
+            color: _selectedTools.contains(option)
+                ? const Color(0xFF5E35B1)
+                : Colors.grey.shade300,
             width: 1.5,
           ),
           shape: RoundedRectangleBorder(
@@ -796,63 +816,186 @@ class _InitialQuestionnaireState extends State<InitialQuestionnaire> {
     );
   }
 
-  Widget _buildScale(int min, int max, List<String> labels) {
+  Widget _buildScale(
+    int min,
+    int max,
+    List<String> labels,
+    int currentValue,
+    Function(int) onChanged,
+  ) {
     return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(max - min + 1, (index) {
-            final value = min + index;
-            return GestureDetector(
-              onTap: () => setState(() => _focusDifficulty = value),
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _focusDifficulty == value
-                      ? const Color(0xFF5E35B1)
-                      : Colors.white,
-                  border: Border.all(
-                    color: _focusDifficulty == value
-                        ? const Color(0xFF5E35B1)
-                        : const Color(0xFFE8E8EE),
-                    width: _focusDifficulty == value ? 2 : 1,
+      children: List.generate(labels.length, (index) {
+        final value = index + 1;
+        final isSelected = currentValue == value;
+
+        return GestureDetector(
+          onTap: () => onChanged(value),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? const Color(0xFF5E35B1).withValues(alpha: 0.08)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSelected
+                    ? const Color(0xFF5E35B1)
+                    : const Color(0xFFE8E8EE),
+                width: isSelected ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                // الرقم الدائري
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected ? const Color(0xFF5E35B1) : Colors.white,
+                    border: Border.all(
+                      color: isSelected
+                          ? const Color(0xFF5E35B1)
+                          : const Color(0xFFE8E8EE),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      value.toString(),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: isSelected
+                            ? Colors.white
+                            : const Color(0xFF1A1A2E),
+                      ),
+                    ),
                   ),
                 ),
-                child: Center(
+                const SizedBox(width: 12),
+
+                // السهم →
+                const Text(
+                  '→',
+                  style: TextStyle(fontSize: 16, color: Color(0xFF8A8A9A)),
+                ),
+                const SizedBox(width: 12),
+
+                // التسمية
+                Expanded(
                   child: Text(
-                    value.toString(),
+                    labels[index],
                     style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: _focusDifficulty == value
-                          ? FontWeight.bold
+                      fontSize: 15,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
                           : FontWeight.normal,
-                      color: _focusDifficulty == value
-                          ? Colors.white
+                      color: isSelected
+                          ? const Color(0xFF5E35B1)
                           : const Color(0xFF1A1A2E),
                     ),
                   ),
                 ),
-              ),
-            );
-          }),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              labels[0],
-              style: const TextStyle(fontSize: 12, color: Color(0xFF8A8A9A)),
+
+                // علامة الصح عند التحديد
+                if (isSelected)
+                  const Icon(
+                    Icons.check_circle,
+                    color: Color(0xFF5E35B1),
+                    size: 20,
+                  ),
+              ],
             ),
-            Text(
-              labels[labels.length - 1],
-              style: const TextStyle(fontSize: 12, color: Color(0xFF8A8A9A)),
+          ),
+        );
+      }),
+    );
+  }
+
+  // دالة مساعدة لبناء عنصر واحد (رقم + سهم + تسمية)
+  Widget _buildScaleItem({
+    required int value,
+    required String label,
+    required int currentValue,
+    required Function(int) onChanged,
+  }) {
+    final isSelected = currentValue == value;
+
+    return GestureDetector(
+      onTap: () => onChanged(value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF5E35B1).withValues(alpha: 0.08)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF5E35B1)
+                : const Color(0xFFE8E8EE),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // الرقم
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected ? const Color(0xFF5E35B1) : Colors.white,
+                border: Border.all(
+                  color: isSelected
+                      ? const Color(0xFF5E35B1)
+                      : const Color(0xFFE8E8EE),
+                  width: 1.5,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  value.toString(),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    color: isSelected ? Colors.white : const Color(0xFF1A1A2E),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // السهم →
+            const Text(
+              '→',
+              style: TextStyle(fontSize: 14, color: Color(0xFF8A8A9A)),
+            ),
+            const SizedBox(width: 8),
+
+            // التسمية
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  color: isSelected
+                      ? const Color(0xFF5E35B1)
+                      : const Color(0xFF1A1A2E),
+                ),
+              ),
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 }

@@ -1,6 +1,6 @@
 // ============================================================
 // 📄 lib/screens/edit_profile_dialog.dart
-// 📌 نافذة تعديل الملف الشخصي - Edit Profile Dialog
+// 📌 نافذة تعديل الملف الشخصي - Edit Profile Dialog (محسّنة)
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -78,6 +78,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
       backgroundColor: Colors.transparent,
       child: Container(
         width: double.infinity,
+        constraints: const BoxConstraints(maxWidth: 420), // ✅ الحد الأقصى للعرض
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -109,13 +110,10 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0xFF5235C5),
-                        const Color(0xFF7B2CBF),
-                      ],
+                      colors: [Color(0xFF5235C5), Color(0xFF7B2CBF)],
                     ),
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: [
@@ -185,13 +183,10 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                     width: 90,
                     height: 90,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
+                      gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [
-                          const Color(0xFF5235C5),
-                          const Color(0xFF7B2CBF),
-                        ],
+                        colors: [Color(0xFF5235C5), Color(0xFF7B2CBF)],
                       ),
                       shape: BoxShape.circle,
                       boxShadow: [
@@ -228,13 +223,10 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
+                          gradient: const LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [
-                              const Color(0xFF5235C5),
-                              const Color(0xFF7B2CBF),
-                            ],
+                            colors: [Color(0xFF5235C5), Color(0xFF7B2CBF)],
                           ),
                           shape: BoxShape.circle,
                         ),
@@ -378,7 +370,10 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                     ),
                     const SizedBox(width: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF4A261).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
@@ -446,12 +441,16 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                         size: 12,
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        'Email cannot be changed for security reasons',
-                        style: GoogleFonts.manrope(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w400,
-                          color: const Color(0xFF8A8A9A),
+                      Expanded( // ✅ منع التجاوز
+                        child: Text(
+                          'Email cannot be changed for security reasons',
+                          style: GoogleFonts.manrope(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w400,
+                            color: const Color(0xFF8A8A9A),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -463,11 +462,13 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
             const SizedBox(height: 24),
 
             // ============================================================
-            // Buttons
+            // Buttons (✅ تم إصلاح مشكلة التجاوز)
             // ============================================================
             Row(
               children: [
+                // ✅ زر Cancel
                 Expanded(
+                  flex: 1,
                   child: GestureDetector(
                     onTap: _isLoading ? null : () => Navigator.pop(context),
                     child: Container(
@@ -494,7 +495,10 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                   ),
                 ),
                 const SizedBox(width: 12),
+
+                // ✅ زر Save
                 Expanded(
+                  flex: 1,
                   child: GestureDetector(
                     onTap: _isLoading ? null : _saveChanges,
                     child: Container(
@@ -518,7 +522,9 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
                             ? null
                             : [
                                 BoxShadow(
-                                  color: const Color(0xFF5235C5).withValues(alpha: 0.3),
+                                  color: const Color(0xFF5235C5).withValues(
+                                    alpha: 0.3,
+                                  ),
                                   blurRadius: 12,
                                   offset: const Offset(0, 4),
                                 ),
