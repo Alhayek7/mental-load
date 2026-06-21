@@ -2645,7 +2645,7 @@ Widget build(BuildContext context) {
               ],
             ),
           )
-        : _errorMessage == 'no_internet' // ✅ شرط جديد
+        : _errorMessage == 'no_internet'
             ? _buildNoInternetState()
             : _errorMessage != null
                 ? _buildErrorState()
@@ -2656,7 +2656,57 @@ Widget build(BuildContext context) {
                       padding: const EdgeInsets.all(16),
                       physics: const AlwaysScrollableScrollPhysics(),
                       child: Column(
-                        // ... المحتوى الموجود
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 📊 قسم Patterns
+                          _buildSectionHeader('📊 Your Patterns', 'Personal patterns detected from your usage data'),
+                          const SizedBox(height: 12),
+
+                          _buildCognitiveOverview(),
+                          const SizedBox(height: 16),
+
+                          _buildCognitiveProfile(),
+                          const SizedBox(height: 16),
+
+                          _buildCognitiveLoadTrend(),
+                          const SizedBox(height: 16),
+
+                          _buildRecommendationImpact(),
+                          const SizedBox(height: 16),
+
+                          _buildPersonalPatterns(),
+                          const SizedBox(height: 16),
+
+                          _buildFatigueForecast(),
+                          const SizedBox(height: 16),
+
+                          _buildAIInsight(),
+
+                          const SizedBox(height: 32),
+
+                          // 📈 قسم Analytics
+                          _buildSectionHeader('📈 Analytics', 'Detailed statistics and analysis'),
+                          const SizedBox(height: 12),
+
+                          _buildPeriodSelector(),
+                          const SizedBox(height: 16),
+
+                          _buildMainChart(),
+                          const SizedBox(height: 16),
+
+                          _buildStatisticsSummary(),
+                          const SizedBox(height: 16),
+
+                          _buildCategoryDistribution(),
+                          const SizedBox(height: 16),
+
+                          _buildAIToolsImpact(),
+                          const SizedBox(height: 16),
+
+                          _buildInsightsSummary(),
+
+                          const SizedBox(height: 80),
+                        ],
                       ),
                     ),
                   ),
